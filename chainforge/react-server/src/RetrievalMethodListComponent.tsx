@@ -394,11 +394,6 @@ const RetrievalMethodListItem: React.FC<
         <div className="llm-card-header">
           {methodItem.emoji && `${methodItem.emoji} `}
           {methodItem.settings?.shortName?.trim() || methodItem.methodName}
-          {isLinked && (
-            <Badge size="xs" color="blue" style={{ marginLeft: 6 }}>
-              Linked
-            </Badge>
-          )}
         </div>
 
         {/* Actions (right) */}
