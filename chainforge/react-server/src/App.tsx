@@ -1191,7 +1191,7 @@ const App = () => {
       importFlowFromJSON(flow);
       await safeSetFlowFileName(flowName);
     },
-    [importFlowFromJSON, safeSetFlowFileName]
+    [importFlowFromJSON, safeSetFlowFileName],
   );
 
   // loader for example flows
@@ -1202,7 +1202,7 @@ const App = () => {
 
       if (/\.cfzip$/i.test(name)) {
         const file = name.endsWith(".cfzip") ? name : `${name}.cfzip`;
-        const url  = name.startsWith("http") ? name : `${base}/examples/${file}`;
+        const url = name.startsWith("http") ? name : `${base}/examples/${file}`;
         await importFlowZipFromURL(url);
         return;
       }

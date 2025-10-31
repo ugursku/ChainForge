@@ -181,7 +181,7 @@ html[data-mantine-color-scheme="dark"] .llm-list-backdrop {
   font-family: -apple-system, "Segoe UI", "Roboto", "Oxygen", "Ubuntu",
     "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
   text-align: start;
-  float: left; 
+  float: left;
   margin: 0;
   white-space: nowrap; /* keep on one line */
   overflow: hidden;
@@ -193,7 +193,7 @@ html[data-mantine-color-scheme="dark"] .llm-list-backdrop {
   display: flex;
   align-items: center;
   gap: 6px;
-  flex-wrap: nowrap; 
+  flex-wrap: nowrap;
 }
 
 html[data-mantine-color-scheme="dark"] .llm-list-item {

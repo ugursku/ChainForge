@@ -585,12 +585,6 @@ const ExampleFlowsModal = forwardRef<
               filename="chainforge-docs.cfzip"
               onSelect={onSelect}
             />
-            <ExampleFlowCard
-              title="Travel Guide"
-              description="Ask questions about travel guides using RAG."
-              filename="travel-guide-example.cfzip"
-              onSelect={onSelect}
-            />
           </SimpleGrid>
         </Tabs.Panel>
       </Tabs>
