@@ -12,11 +12,32 @@ from chainforge.security.secure_save import load_json_file, save_json_file
 import requests as py_requests
 from platformdirs import user_data_dir
 
+""" ========================================================
+    DETECT RAGFORGE AVAILABILITY AND IMPORT RAGFORGE MODULES
+    ========================================================
+"""
+def IS_RAG_AVAILABLE():
+    from importlib.util import find_spec
+    try:
+        packages = ["langchain", "pyarrow", "lancedb", "sentence_transformers", "chonkie", "rank_bm25", "spacy", "numpy", "nltk"]
+        for package in packages:
+            if find_spec(package) is None:
+                return False
+        print("RAGForge dependencies detected. Enabling RAGForge features...")
+        return True
+    except ImportError:
+        print("You are running ChainForge core. RAGForge dependencies were not detected; hence, RAG features will be disabled.")
+        return False
+RAG_AVAILABLE = IS_RAG_AVAILABLE()
+
 # RAG-specific imports
-from chainforge.rag.chunkers import ChunkingMethodRegistry
-from chainforge.rag.retrievers import RetrievalMethodRegistry
-from chainforge.rag.embeddings import EmbeddingMethodRegistry
-from markitdown import MarkItDown
+if RAG_AVAILABLE:
+    from chainforge.rag.chunkers import ChunkingMethodRegistry
+    from chainforge.rag.retrievers import RetrievalMethodRegistry
+    from chainforge.rag.rerankers import RerankingMethodRegistry
+    from chainforge.rag.embeddings import EmbeddingMethodRegistry
+    from markitdown import MarkItDown
+
 
 """ =================
     SETUP AND GLOBALS
@@ -274,9 +295,8 @@ def index():
     # Get the index.html HTML code
     html_str = render_template("index.html")
     
-    # Inject global JS variables __CF_HOSTNAME and __CF_PORT at the top so that the application knows 
-    # that it's running from a Flask server, and what the hostname and port of that server is:
-    html_str = html_str[:60] + f'<script>window.__CF_HOSTNAME="{HOSTNAME}"; window.__CF_PORT={PORT};</script>' + html_str[60:]
+    # Inject global JS variables like __CF_HOSTNAME and __CF_PORT at the top so that the application knows that it's running from a Flask server, and what the hostname and port of that server is:
+    html_str = html_str[:60] + f'<script>window.__CF_HOSTNAME="{HOSTNAME}"; window.__CF_PORT={PORT}; window.__RAG_AVAILABLE={RAG_AVAILABLE};</script>' + html_str[60:]
 
     return html_str
 
@@ -497,6 +517,29 @@ def fetchEnvironAPIKeys():
     }
     d = { alias: os.environ.get(key) for key, alias in keymap.items() }
     ret = jsonify(d)
+    ret.headers.add('Access-Control-Allow-Origin', '*')
+    return ret
+
+
+@app.route('/app/checkRagAvailable', methods=['POST'])
+def checkRagAvailable():
+    """
+    Check if RAG dependencies are available.
+    Returns True if all required RAG packages are installed, False otherwise.
+    """
+    try:
+        # Try importing key RAG dependencies
+        import sentence_transformers  # noqa: F401
+        import chromadb  # noqa: F401
+        from chainforge.rag import retrievers, rerankers, embeddings  # noqa: F401
+        
+        # If we get here, all imports succeeded
+        rag_available = True
+    except ImportError:
+        # One or more RAG dependencies are missing
+        rag_available = False
+    
+    ret = jsonify({"rag_available": rag_available})
     ret.headers.add('Access-Control-Allow-Origin', '*')
     return ret
 
@@ -1691,6 +1734,107 @@ def retrieve():
                     continue
     
     return jsonify(flat_results), 200
+
+
+# === Reranking Endpoint ===
+@app.route("/rerank", methods=["POST"])
+def rerank():
+    """
+    Rerank documents using the specified reranking method.
+    
+    Expected form data:
+    - baseMethod: The reranking method identifier (e.g., "cross_encoder", "cohere_rerank")
+    - documents: JSON array of document texts to rerank
+    - query: Query text for relevance scoring (optional)
+    - api_keys: JSON object containing API keys (optional)
+    - Additional method-specific settings as form fields
+    
+    Returns:
+    - JSON response with reranked documents containing:
+      - reranked_documents: List of documents with scores and indices
+    """
+    if not request.form:
+        return jsonify({"error": "Request must be form data"}), 400
+    
+    base_method = request.form.get("baseMethod")
+    documents_json = request.form.get("documents")
+    query = request.form.get("query", "")
+    api_keys_json = request.form.get("api_keys", "{}")
+    
+    if not base_method:
+        return jsonify({"error": "Missing 'baseMethod' in form data"}), 400
+    if not documents_json:
+        return jsonify({"error": "Missing 'documents' in form data"}), 400
+    
+    try:
+        # Parse documents JSON
+        import json
+        documents = json.loads(documents_json)
+        if not isinstance(documents, list):
+            return jsonify({"error": "Documents must be a JSON array"}), 400
+    except (json.JSONDecodeError, ValueError) as e:
+        return jsonify({"error": f"Invalid JSON in documents: {e}"}), 400
+    
+    # Parse api_keys JSON
+    try:
+        api_keys = json.loads(api_keys_json) if api_keys_json else {}
+        if not isinstance(api_keys, dict):
+            return jsonify({"error": "api_keys must be a JSON object"}), 400
+    except (json.JSONDecodeError, ValueError) as e:
+        return jsonify({"error": f"Invalid JSON in api_keys: {e}"}), 400
+    
+    # Get the reranking handler
+    handler = RerankingMethodRegistry.get_handler(base_method)
+    
+    # Check for custom provider if not found in built-in methods
+    if not handler and base_method.startswith("__custom/"):
+        provider_name = base_method[len("__custom/"):]
+        entry = ProviderRegistry.get(provider_name)
+        if entry and entry.get("func"):
+            handler = entry["func"]
+    
+    if not handler:
+        return jsonify({"error": f"Unsupported reranking method: {base_method}"}), 400
+    
+    # Extract additional settings from form data
+    settings = {}
+    known_int_params = {"top_k", "batch_size", "max_chunks_per_doc", "preserve_top_k", "k_param"}
+    known_float_params = {"lambda_param", "diversity_threshold"}
+    known_bool_params = {"normalize_scores"}
+    
+    for key, value in request.form.items():
+        if key not in ["baseMethod", "documents", "query", "api_keys"]:
+            try:
+                if key in known_int_params:
+                    settings[key] = int(value)
+                elif key in known_float_params:
+                    settings[key] = float(value)
+                elif key in known_bool_params:
+                    settings[key] = value.lower() in ['true', '1', 't', 'y', 'yes']
+                else:
+                    settings[key] = value  # Keep as string if type unknown
+            except (ValueError, TypeError):
+                print(f"Warning: Could not convert setting '{key}' with value '{value}' to expected type. Using raw value.", file=sys.stderr)
+                settings[key] = value  # Fallback to string if conversion fails
+    
+    # Add api_keys to settings
+    if api_keys:
+        settings['api_keys'] = api_keys
+    
+    try:
+        # Call the reranking handler
+        reranked_results = handler(documents, query, **settings)
+        return jsonify({"reranked_documents": reranked_results}), 200
+        
+    except ValueError as ve:
+        print(f"Configuration or setup error during reranking ({base_method}): {ve}", file=sys.stderr)
+        return jsonify({"error": f"Setup error: {ve}"}), 400
+    except ImportError as ie:
+        print(f"Import error during reranking ({base_method}): {ie}", file=sys.stderr)
+        return jsonify({"error": f"Missing library dependency: {ie.name}"}), 500
+    except Exception as e:
+        print(f"Unexpected error during reranking ({base_method}): {e}", file=sys.stderr)
+        return jsonify({"error": "An internal error occurred during reranking."}), 500
 
 
 @app.route('/api/proxyImage', methods=['GET'])
