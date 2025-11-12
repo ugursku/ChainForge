@@ -145,7 +145,7 @@ const ChunkNode: React.FC<ChunkNodeProps> = ({ data, id }) => {
               formData.append(k, String(v));
             });
 
-            const res = await fetch(`${FLASK_BASE_URL}/chunk`, {
+            const res = await fetch(`${FLASK_BASE_URL}chunk`, {
               method: "POST",
               body: formData,
             });

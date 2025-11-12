@@ -152,7 +152,7 @@ const RetrievalNode: React.FC<RetrievalNodeProps> = ({ id, data }) => {
       console.log("Chunks:", inputData.chunks);
 
       // Make the API request
-      const response = await fetch(`${FLASK_BASE_URL}/retrieve`, {
+      const response = await fetch(`${FLASK_BASE_URL}retrieve`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

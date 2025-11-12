@@ -218,7 +218,7 @@ const RerankNode: React.FC<RerankNodeProps> = ({ data, id }) => {
               formData.append("api_keys", JSON.stringify(apiKeys));
             }
 
-            const res = await fetch(`${FLASK_BASE_URL}/rerank`, {
+            const res = await fetch(`${FLASK_BASE_URL}rerank`, {
               method: "POST",
               body: formData,
             });
