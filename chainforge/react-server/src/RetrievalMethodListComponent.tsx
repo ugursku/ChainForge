@@ -5,6 +5,7 @@ import React, {
   useImperativeHandle,
   useCallback,
   useMemo,
+  useEffect,
 } from "react";
 import {
   Menu,
@@ -43,6 +44,7 @@ import {
 import useStore from "./store";
 import { DatalistWidget } from "./ModelSettingsModal";
 import NestedMenu, { NestedMenuItemProps } from "./NestedMenu";
+import { ensureUniqueName } from "./backend/utils";
 
 /** Linked group of methods with fusion settings */
 export interface LinkedMethodGroup {
@@ -269,6 +271,87 @@ const FusionSettingsModal: React.FC<FusionSettingsModalProps> = ({
     onFusionMethodChange(group.id, newMethod, defaultSettings);
   };
 
+  const methodLabels = useMemo(
+    () => groupMethods.map((m) => m.settings?.shortName || m.methodName),
+    [groupMethods],
+  );
+  const weightKeys = useMemo(
+    () => methodLabels.map((_, i) => `w_${i}`),
+    [methodLabels],
+  );
+
+  // flags
+  const isRRF = fusionMethod?.value === "reciprocal_rank_fusion";
+
+  // dynamic schema: k + one number field per method (titles = labels)
+  const dynamicSchema: RJSFSchema = useMemo(() => {
+    const props: Record<string, any> = {};
+
+    if (isRRF) {
+      props.k = {
+        type: "number",
+        title: "K Parameter",
+        default: 60,
+        description: "Parameter for RRF formula (higher = more democratic)",
+      };
+    }
+
+    methodLabels.forEach((label, i) => {
+      props[`w_${i}`] = {
+        type: "number",
+        title: label,
+        description:
+          "Set a weight per method (0–1). 1 = equal weight; 0 effectively mutes the method.",
+        default: 1,
+        minimum: 0,
+        maximum: 1,
+      };
+    });
+
+    const order: string[] = [];
+    if (props.k) order.push("k");
+    order.push(...methodLabels.map((_, i) => `w_${i}`));
+
+    return { type: "object", properties: props, "ui:order": order } as any;
+  }, [isRRF, methodLabels]);
+
+  const [formData, setFormData] = useState<any>(() => {
+    const fd: any = { k: group.fusionSettings?.k ?? 60 };
+    weightKeys.forEach((key, i) => {
+      const v = group.fusionSettings?.weights?.[i];
+      fd[key] = Number.isFinite(v) ? Math.min(1, Math.max(0, v as number)) : 1;
+    });
+    return fd;
+  });
+
+  useEffect(() => {
+    const next: any = { k: group.fusionSettings?.k ?? 60 };
+    weightKeys.forEach((key, i) => {
+      const v = group.fusionSettings?.weights?.[i];
+      next[key] = Number.isFinite(v)
+        ? Math.min(1, Math.max(0, v as number))
+        : 1;
+    });
+    setFormData(next);
+  }, [opened, group.id, weightKeys.join("|")]);
+
+  const handleSubmit = (e: any) => {
+    const data = e.formData || {};
+    const weights = methodLabels.map((_, i) => {
+      const n = Number(data[`w_${i}`]);
+      return Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : 1;
+    });
+
+    if (isRRF) {
+      // k + weights
+      onSettingsUpdate({ k: Number(data.k ?? 60), weights });
+    } else {
+      // weights only
+      onSettingsUpdate({ weights });
+    }
+    onClose();
+  };
+
   return (
     <Modal
       opened={opened}
@@ -321,13 +404,24 @@ const FusionSettingsModal: React.FC<FusionSettingsModalProps> = ({
             <Text size="sm" weight={500} mb="xs">
               Settings:
             </Text>
+
             <Form<any, RJSFSchema, any>
-              schema={fusionMethod.schema as any}
+              schema={dynamicSchema}
               validator={validator}
-              formData={group.fusionSettings}
-              onChange={(e) => onSettingsUpdate(e.formData)}
+              formData={formData}
+              noHtml5Validate
+              liveValidate
+              onChange={(e) => setFormData(e.formData)} // local only while typing
+              onSubmit={handleSubmit} // commit once
             >
-              <Button type="submit" style={{ display: "none" }} />
+              <div
+                style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}
+              >
+                <Button variant="default" onClick={onClose} type="button">
+                  Cancel
+                </Button>
+                <Button type="submit">Save</Button>
+              </div>
             </Form>
           </Box>
         )}
@@ -393,7 +487,7 @@ const RetrievalMethodListItem: React.FC<
         {/* Title (left) */}
         <div className="llm-card-header">
           {methodItem.emoji && `${methodItem.emoji} `}
-          {methodItem.settings?.shortName?.trim() || methodItem.methodName}
+          {methodItem.settings?.shortName || methodItem.methodName}
         </div>
 
         {/* Actions (right) */}
@@ -472,6 +566,8 @@ const RetrievalMethodListItem: React.FC<
 /** Main container */
 export interface RetrievalMethodListContainerProps {
   initMethodItems?: RetrievalMethodSpec[];
+  initLinkedGroups?: LinkedMethodGroup[];
+  onGroupsChange?: (groups: LinkedMethodGroup[]) => void;
   onItemsChange?: (
     newItems: RetrievalMethodSpec[],
     oldItems: RetrievalMethodSpec[],
@@ -485,7 +581,8 @@ export const RetrievalMethodListContainer = forwardRef<
   const [methodItems, setMethodItems] = useState<RetrievalMethodSpec[]>(
     props.initMethodItems || [],
   );
-  const [linkedGroups, setLinkedGroups] = useState<LinkedMethodGroup[]>([]);
+  const linkedGroups: LinkedMethodGroup[] = props.initLinkedGroups ?? [];
+
   const [fusionModalGroup, setFusionModalGroup] =
     useState<LinkedMethodGroup | null>(null);
   const oldItemsRef = useRef<RetrievalMethodSpec[]>(methodItems);
@@ -547,11 +644,13 @@ export const RetrievalMethodListContainer = forwardRef<
 
       let defaultSettings: Record<string, any> = {};
 
+      const uniqueName = ensureUniqueName(m.methodName, methodItems.map(
+        (i) => i.settings?.shortName || i.methodName
+      ));
+
       if (isCustom) {
         // Pull defaults from normalized custom schema
         defaultSettings = defaultsFromCustomSchema(m.settingsSchema);
-        if (!("shortName" in defaultSettings))
-          defaultSettings.shortName = m.methodName;
       } else {
         const methodSchema = RetrievalMethodSchemas[m.baseMethod];
         if (methodSchema?.schema?.properties) {
@@ -568,11 +667,12 @@ export const RetrievalMethodListContainer = forwardRef<
           defaultSettings.embeddingModel = provider.models[0];
         }
       }
+      defaultSettings.shortName = uniqueName;
 
       const newItem: RetrievalMethodSpec = {
         key: uuid(),
         baseMethod: m.baseMethod,
-        methodName: m.methodName,
+        methodName: uniqueName,
         library: m.library,
         emoji: m.emoji,
         needsEmbeddingModel: m.needsEmbeddingModel,
@@ -611,7 +711,7 @@ export const RetrievalMethodListContainer = forwardRef<
         fusionSettings: { k: 60 },
       };
 
-      setLinkedGroups((prev) => [...prev, newGroup]);
+      props.onGroupsChange?.([...(linkedGroups || []), newGroup]);
 
       const newItems = methodItems.map((m) =>
         m.key === methodKey || m.key === nextMethod.key
@@ -626,7 +726,7 @@ export const RetrievalMethodListContainer = forwardRef<
 
   const handleUnlinkMethods = useCallback(
     (groupId: string) => {
-      setLinkedGroups((prev) => prev.filter((g) => g.id !== groupId));
+      props.onGroupsChange?.((linkedGroups || []).filter((g) => g.id !== groupId));
 
       const newItems = methodItems.map((m) =>
         m.groupId === groupId ? { ...m, groupId: undefined } : m,
@@ -639,25 +739,29 @@ export const RetrievalMethodListContainer = forwardRef<
 
   const handleFusionSettingsUpdate = useCallback(
     (groupId: string, settings: any) => {
-      setLinkedGroups((prev) =>
-        prev.map((g) =>
+      // Update the source of truth
+      props.onGroupsChange?.(
+        (linkedGroups || []).map((g) =>
           g.id === groupId ? { ...g, fusionSettings: settings } : g,
         ),
       );
+
+      //  Keep the modal's local state in lockstep so RJSF stays editable
+      setFusionModalGroup((prev) =>
+        prev && prev.id === groupId
+          ? { ...prev, fusionSettings: settings }
+          : prev,
+      );
     },
-    [],
+    [linkedGroups, props.onGroupsChange],
   );
 
   const handleFusionMethodChange = useCallback(
     (groupId: string, fusionMethod: string, defaultSettings: any) => {
-      setLinkedGroups((prev) =>
-        prev.map((g) =>
+      props.onGroupsChange?.(
+        (linkedGroups || []).map((g) =>
           g.id === groupId
-            ? {
-                ...g,
-                fusionMethod,
-                fusionSettings: defaultSettings,
-              }
+            ? { ...g, fusionMethod, fusionSettings: defaultSettings }
             : g,
         ),
       );
@@ -671,7 +775,7 @@ export const RetrievalMethodListContainer = forwardRef<
           : null,
       );
     },
-    [methodItems],
+    [linkedGroups, props.onGroupsChange],
   );
 
   const addMenuItems: NestedMenuItemProps[] = useMemo(() => {
@@ -760,12 +864,13 @@ export const RetrievalMethodListContainer = forwardRef<
           ) : (
             methodItems.map((item) => {
               const group = linkedGroups.find((g) => g.id === item.groupId);
+              const members = methodItems.filter(
+                (m) => m.groupId === group?.id,
+              );
               const isLinked = !!group;
-              const isFirstInGroup =
-                isLinked && group.methodKeys[0] === item.key;
+              const isFirstInGroup = isLinked && members[0]?.key === item.key;
               const isLastInGroup =
-                isLinked &&
-                group.methodKeys[group.methodKeys.length - 1] === item.key;
+                isLinked && members[members.length - 1]?.key === item.key;
 
               return (
                 <RetrievalMethodListItem

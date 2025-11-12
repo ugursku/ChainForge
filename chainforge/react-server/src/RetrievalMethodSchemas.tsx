@@ -956,7 +956,7 @@ export const retrievalMethodGroups = [
     items: [
       {
         baseMethod: "bm25",
-        methodName: "BM25",
+        methodName: "BM25 Retrieval",
         library: "BM25",
         emoji: "📊",
         group: "Keyword-based Retrieval",
@@ -964,7 +964,7 @@ export const retrievalMethodGroups = [
       },
       {
         baseMethod: "tfidf",
-        methodName: "TF-IDF",
+        methodName: "TF-IDF Retrieval",
         library: "TF-IDF",
         emoji: "📈",
         group: "Keyword-based Retrieval",

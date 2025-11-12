@@ -11,6 +11,8 @@ from chainforge.security.password_utils import ensure_password
 from chainforge.security.secure_save import load_json_file, save_json_file
 import requests as py_requests
 from platformdirs import user_data_dir
+import copy
+from collections import defaultdict
 
 """ ========================================================
     DETECT RAGFORGE AVAILABILITY AND IMPORT RAGFORGE MODULES
@@ -34,7 +36,7 @@ RAG_AVAILABLE = IS_RAG_AVAILABLE()
 if RAG_AVAILABLE:
     from chainforge.rag.chunkers import ChunkingMethodRegistry
     from chainforge.rag.retrievers import RetrievalMethodRegistry
-    from chainforge.rag.rerankers import RerankingMethodRegistry
+    from chainforge.rag.rerankers import RerankingMethodRegistry, rrf_fuse, weighted_avg_fuse
     from chainforge.rag.embeddings import EmbeddingMethodRegistry
     from markitdown import MarkItDown
 
@@ -1083,7 +1085,7 @@ def media_to_text(uid):
     try:
         ext = os.path.splitext(file_path)[1].lower()
 
-        allowed_extensions = {".pdf", ".txt", ".docx", ".xlsx", ".xls", ".pptx"}
+        allowed_extensions = {".pdf", ".txt", ".docx", ".xlsx", ".xls", ".pptx", ".md"}
         if ext == '.txt':
             # Read text files directly
             with open(file_path, 'rb') as f:
@@ -1507,6 +1509,10 @@ def retrieve():
     queries = data.get("queries", [])
     api_keys = data.get("api_keys", [])
 
+    fusion_enabled = bool(data.get("fusion_enabled", False))
+    linked_groups = data.get("linked_groups", []) if fusion_enabled else []
+    method_name_by_id = {m["id"]: m["methodName"] for m in methods}
+
     queries = [{'text': q} if isinstance(q, str) else q for q in queries]
 
     print("[DEBUG] ", methods)
@@ -1518,6 +1524,21 @@ def retrieve():
         return jsonify({"error": "No chunks provided"}), 400
     if not queries:
         return jsonify({"error": "No queries provided"}), 400
+    
+    method_id_to_group = {}
+    group_cfg = {}
+    if fusion_enabled:
+        for g in linked_groups:
+            gid = g.get("id")
+            if not gid:
+                continue
+            group_cfg[gid] = g
+            for mid in g.get("methodKeys", []):
+                method_id_to_group[mid] = gid
+
+    # (query_text, chunkMethod) -> { methodId -> [ {doc_id, rank, score, obj} ] }
+    staging = defaultdict(lambda: defaultdict(list))
+
     
     resolved_handlers = {}
     for method in methods:
@@ -1625,6 +1646,7 @@ def retrieve():
                                 **query_object.get("fill_history", {}),  # Include original query fill_history, if any
                                 "query": query_object['text'],
                                 "retrievalMethod": method_name,
+                                "chunkMethod": chunk_method,  # Include chunking method in vars
                             },
                             "metavars": {
                                 **query_object.get("metavars", {}),  # Include original query metavars
@@ -1634,10 +1656,18 @@ def retrieve():
                                 "docTitle": chunk.get("docTitle", ""),
                                 "chunkId": chunk.get("chunkId", ""),
                                 "chunkLibrary": chunk.get("chunkLibrary", ""),
-                                "chunkMethod": chunk_method,  # Include chunking method in metavars
                             },
                             "llm": chunk.get("llm", "(none)"),  # Use chunk's LLM if available
                         }
+
+                        if fusion_enabled:
+                            doc_id = chunk.get("chunkId");
+                            score = float(chunk.get("similarity", 0.0))
+                            rank = i + 1
+                            query_txt = query_object['text']
+                            staging[(query_txt, chunk_method)][method_id].append({
+                                "doc_id": doc_id, "rank": rank, "score": score, "obj": response_obj
+                            })
                         
                         flat_results.append(response_obj)
             except Exception as e:
@@ -1719,13 +1749,65 @@ def retrieve():
                                 },
                                 "llm": chunk.get("llm", "(none)"),  # Use chunk's LLM if available
                             }
-                            
+
+                            if fusion_enabled:
+                                doc_id = chunk.get("chunkId");
+                                score = float(chunk.get("similarity", 0.0))
+                                rank = i + 1
+                                query_txt = query_object['text']
+                                staging[(query_txt, chunk_method)][method_id].append({
+                                    "doc_id": doc_id, "rank": rank, "score": score, "obj": response_obj
+                                })
                             flat_results.append(response_obj)
-                            
                 except Exception as e:
-                    # Skip errors - we'll just not include results from this method
                     print(f"Error with {method_name} on {chunk_method}: {str(e)}")
                     continue
+    # === Retrieval Fusion (imported helpers) ===
+    if fusion_enabled and linked_groups:
+        for (query_txt, chunk_method), per_method in staging.items():
+            groups = defaultdict(dict)
+            for mid, items in per_method.items():
+                gid = method_id_to_group.get(mid)
+                if gid: groups[gid][mid] = items
+            for gid, method_lists in groups.items():
+                cfg = group_cfg.get(gid, {})
+                fmethod = cfg.get("fusionMethod")
+                settings = cfg.get("fusionSettings") or {}
+                if fmethod in ("reciprocal_rank_fusion"): 
+                    method_keys = (cfg.get("methodKeys") or [])
+                    weights_arr = settings.get("weights") or []
+                    weights_map = {mid: float(w) for i, mid in enumerate(method_keys)
+                                for w in [weights_arr[i] if i < len(weights_arr) else None] if isinstance(w, (int, float))}
+                    k_val = int(settings.get("k", settings.get("K", 60)))
+                    fused = rrf_fuse(method_lists, k=k_val, weights_by_method=weights_map)
+                    fusion_sig, fusion_name = "fusion:rrf", "rrf"
+                else: # Weighted Average
+                    method_keys = (cfg.get("methodKeys") or [])
+                    weights_arr = settings.get("weights") or []
+                    weights_map = {
+                        mid: float(w)
+                        for i, mid in enumerate(method_keys)
+                        for w in [weights_arr[i] if i < len(weights_arr) else None]
+                        if isinstance(w, (int, float))
+                    }
+                    fused = weighted_avg_fuse(
+                        method_lists,
+                        weights_by_method=weights_map,
+                    )
+                    fusion_sig, fusion_name = "fusion:weighted_average", "weighted_average"
+                group_method_ids = [mid for mid in (cfg.get("methodKeys") or []) if mid in method_lists]
+                pretty_names = [method_name_by_id[mid] for mid in group_method_ids]
+                fused_label = f"Fused ({' + '.join(pretty_names)})"
+                for rank_idx, (doc_id, fused_score, base_obj) in enumerate(fused, start=1):
+                    obj = copy.deepcopy(base_obj)
+                    obj["eval_res"]["items"] = [{"similarity": fused_score, "rank": rank_idx}]
+                    obj["vars"]["retrievalMethod"] = fused_label
+                    obj["metavars"].update({
+                        "methodId": f"group:{gid}",
+                        "retrievalMethodSignature": fusion_sig,
+                        "signature": f"{chunk_method}-FUSED-{gid}",
+                    })
+                    flat_results.append(obj)
     
     return jsonify(flat_results), 200
 
