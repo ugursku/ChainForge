@@ -175,10 +175,11 @@ const ChunkMethodListContainer = forwardRef<
 
   const addMethod = useCallback(
     (m: Omit<ChunkMethodSpec, "key" | "settings">) => {
-      const uniqueName = ensureUniqueName(m.name, methodItems.map(
-              (i) => i.settings?.shortname || i.name
-            ));
-            
+      const uniqueName = ensureUniqueName(
+        m.name,
+        methodItems.map((i) => i.settings?.shortname || i.name),
+      );
+
       const newItem: ChunkMethodSpec = {
         key: uuid(),
         baseMethod: m.baseMethod,

@@ -644,9 +644,10 @@ export const RetrievalMethodListContainer = forwardRef<
 
       let defaultSettings: Record<string, any> = {};
 
-      const uniqueName = ensureUniqueName(m.methodName, methodItems.map(
-        (i) => i.settings?.shortName || i.methodName
-      ));
+      const uniqueName = ensureUniqueName(
+        m.methodName,
+        methodItems.map((i) => i.settings?.shortName || i.methodName),
+      );
 
       if (isCustom) {
         // Pull defaults from normalized custom schema
@@ -726,7 +727,9 @@ export const RetrievalMethodListContainer = forwardRef<
 
   const handleUnlinkMethods = useCallback(
     (groupId: string) => {
-      props.onGroupsChange?.((linkedGroups || []).filter((g) => g.id !== groupId));
+      props.onGroupsChange?.(
+        (linkedGroups || []).filter((g) => g.id !== groupId),
+      );
 
       const newItems = methodItems.map((m) =>
         m.groupId === groupId ? { ...m, groupId: undefined } : m,

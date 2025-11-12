@@ -31,7 +31,7 @@ def readme():
 
 setup(
     name="chainforge",
-    version="0.3.6.4",
+    version="0.3.7.0",
     packages=find_packages(),
     author="Ian Arawjo",
     description="A Visual Programming Environment for Prompt Engineering",
@@ -53,7 +53,7 @@ setup(
         "mistune>=2.0",  # for LLM response markdown parsing
         "markitdown[pdf, docx, xlsx, xls, pptx]",
     ],
-    extra_requires={
+    extras_require={
         # Extra dependencies for functionality like RAGForge,
         # which may not be needed by all users
         "rag": rag_deps,

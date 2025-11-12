@@ -296,9 +296,12 @@ def exclude_key(d, key_to_exclude):
 def index():
     # Get the index.html HTML code
     html_str = render_template("index.html")
+
+    # RAG available flag
+    rag_av = "true" if RAG_AVAILABLE else "false"
     
     # Inject global JS variables like __CF_HOSTNAME and __CF_PORT at the top so that the application knows that it's running from a Flask server, and what the hostname and port of that server is:
-    html_str = html_str[:60] + f'<script>window.__CF_HOSTNAME="{HOSTNAME}"; window.__CF_PORT={PORT}; window.__RAG_AVAILABLE={RAG_AVAILABLE};</script>' + html_str[60:]
+    html_str = html_str[:60] + f'<script>window.__CF_HOSTNAME="{HOSTNAME}"; window.__CF_PORT={PORT}; window.__RAG_AVAILABLE={rag_av};</script>' + html_str[60:]
 
     return html_str
 
