@@ -1,7 +1,7 @@
 import pytest
 from chainforge.rag.chunkers import (
     chonkie_token, chonkie_sentence, chonkie_recursive, chonkie_semantic, 
-    chonkie_sdpm, chonkie_late, chonkie_neural, overlapping_langchain_textsplitter,
+    chonkie_sdpm, chonkie_late, chonkie_neural,
     overlapping_openai_tiktoken, overlapping_huggingface_tokenizers,
     syntax_nltk, syntax_texttiling
 )
@@ -107,21 +107,6 @@ class TestChonkieChunking:
     chunks = chunker(self.dummy_document)
     assert isinstance(chunks, list)
 
-  def test_overlapping_langchain(self):
-    chunker = overlapping_langchain_textsplitter
-    chunks = chunker(self.dummy_document)
-    assert isinstance(chunks, list)
-    assert len(chunks) > 0
-    for chunk in chunks:
-      assert isinstance(chunk, str)
-  
-  def test_overlapping_langchain_with_parameters(self):
-    chunker = overlapping_langchain_textsplitter
-    chunks = chunker(self.dummy_document, chunk_size=150, 
-                     chunk_overlap=20, keep_separator=False)
-    assert isinstance(chunks, list)
-    assert len(chunks) > 0
-  
   def test_overlapping_tiktoken(self):
     chunker = overlapping_openai_tiktoken
     chunks = chunker(self.dummy_document)

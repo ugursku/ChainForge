@@ -1,41 +1,6 @@
 import { ModelSettingsDict } from "./backend/typing";
 
 /**
- * Overlapping + LangChain
- */
-export const OverlappingLangChainSchema: ModelSettingsDict = {
-  fullName: "Overlapping + LangChain",
-  description: "Chunk text via LangChain's RecursiveCharacterTextSplitter.",
-  schema: {
-    type: "object",
-    required: ["chunk_size", "chunk_overlap"],
-    properties: {
-      chunk_size: { type: "number", default: 2000, title: "Chunk Size" },
-      chunk_overlap: { type: "number", default: 300, title: "Overlap" },
-    },
-  },
-  uiSchema: {
-    chunk_size: {
-      "ui:widget": "updown", // HTML range input
-      "ui:options": {
-        min: 100,
-        max: 5000,
-        step: 50,
-      },
-    },
-    chunk_overlap: {
-      "ui:widget": "updown",
-      "ui:options": {
-        min: 0,
-        max: 500,
-        step: 10,
-      },
-    },
-  },
-  postprocessors: {},
-};
-
-/**
  * Overlapping + OpenAI tiktoken
  */
 export const OverlappingOpenAITiktokenSchema: ModelSettingsDict = {
@@ -627,7 +592,6 @@ export const ChonkieLateSchema: ModelSettingsDict = {
 };
 
 export const ChunkMethodSchemas: { [baseMethod: string]: ModelSettingsDict } = {
-  overlapping_langchain: OverlappingLangChainSchema,
   overlapping_openai_tiktoken: OverlappingOpenAITiktokenSchema,
   overlapping_huggingface_tokenizers: OverlappingHuggingfaceTokenizerSchema,
   markdown_header: MarkdownHeaderSchema,
@@ -686,12 +650,6 @@ export const ChunkMethodGroups = [
   {
     label: "Overlapping Chunking",
     items: [
-      {
-        baseMethod: "overlapping_langchain",
-        methodType: "Overlapping Chunking",
-        name: "LangChain TextSplitter",
-        emoji: "🌐",
-      },
       {
         baseMethod: "overlapping_openai_tiktoken",
         methodType: "Overlapping Chunking",

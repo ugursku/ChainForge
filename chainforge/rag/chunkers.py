@@ -29,21 +29,6 @@ class ChunkingMethodRegistry:
         return cls._methods.get(identifier)
 
 # === Chunking Helper Functions ===
-@ChunkingMethodRegistry.register("overlapping_langchain")
-def overlapping_langchain_textsplitter(text: str, **kwargs: Any) -> List[str]:
-    # LangChain's Text Splitter
-    from langchain.text_splitter import RecursiveCharacterTextSplitter
-
-    chunk_size = int(kwargs.get("chunk_size", 200))
-    chunk_overlap = int(kwargs.get("chunk_overlap", 50))
-    keep_separator = bool(kwargs.get("keep_separator", True))
-
-    splitter = RecursiveCharacterTextSplitter(
-        chunk_size=chunk_size, chunk_overlap=chunk_overlap, keep_separator=keep_separator
-    )
-    chunks = splitter.split_text(text)
-    return chunks if chunks else [text]
-
 @ChunkingMethodRegistry.register("overlapping_openai_tiktoken")
 def overlapping_openai_tiktoken(text: str, **kwargs: Any) -> List[str]:
     # OpenAI's Tiktoken for token-based chunking
@@ -387,7 +372,6 @@ def chonkie_sdpm(text: str, **kwargs: Any) -> List[str]:
     
     # Handle delimiters - convert from JSON string if needed
     delim = kwargs.get("delim", '[".", "!", "?", "\\n\\n"]')
-    include_delim = kwargs.get("include_delim", None)
     
     try: 
         delim = json.loads(delim)  # Parse JSON format

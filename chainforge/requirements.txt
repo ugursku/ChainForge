@@ -12,9 +12,6 @@ cryptography
 pymupdf
 python-docx
 tiktoken
-langchain
-langchain-core
-langchain-community
 nltk>=3.8
 transformers
 scikit-learn>=1.4.0

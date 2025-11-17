@@ -3,14 +3,11 @@ from setuptools import setup, find_packages
 # Dependency groups
 rag_deps = [
     # RAGForge dependencies
-    "grpcio==1.44.0",  # later versions of grpcio hang indefinitely on some Mac systems, upon building the wheel
+    "grpcio",
     "numpy<2.0",  # numpy>=2.0 is not compatible with libraries like torch
     "pymupdf",
     "python-docx",
     "tiktoken",
-    "langchain",
-    "langchain-core",
-    "langchain-community",
     "nltk>=3.8",
     "transformers",
     "scikit-learn>=1.4.0",
