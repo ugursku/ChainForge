@@ -146,32 +146,28 @@ def markdown_header(text: str, **kwargs) -> list[str]:
     return chunks if chunks else [text]
 
 
-@ChunkingMethodRegistry.register("syntax_spacy")
-def syntax_spacy(text: str, **kwargs: Any) -> List[str]:
-    # SpaCy for sentence splitting and NLP objects
-    import spacy
-    import sys
+@ChunkingMethodRegistry.register("syntax_nltk")
+def syntax_nltk(text: str, **kwargs: Any) -> List[str]:
+    import nltk
+    from nltk.tokenize import sent_tokenize
 
-    # Try to load the SpaCy model and handle errors if it's not found
-    try:
-        nlp = spacy.load("en_core_web_sm")
-    except OSError as e:
-        print(f"spaCy model 'en_core_web_sm' not found. Please run 'python -m spacy download en_core_web_sm'. Error: {e}", file=sys.stderr)
-        
-        # Optionally, you can download the model automatically here if you want
-        print("Attempting to download the model...")
+    # Ensure both punkt and punkt_tab are available (NLTK >= 3.8)
+    for resource in ["punkt", "punkt_tab"]:
         try:
-            from subprocess import run
-            run(["python", "-m", "spacy", "download", "en_core_web_sm"], check=True)
-            print("Model downloaded successfully.")
-            nlp = spacy.load("en_core_web_sm")  # Reload after download
-        except Exception as download_error:
-            print(f"Error downloading the model: {download_error}", file=sys.stderr)
-            raise ValueError("spaCy language model not available.") from download_error
+            nltk.data.find(f"tokenizers/{resource}")
+        except LookupError:
+            try:
+                nltk.download(resource, quiet=True)
+            except Exception as e:
+                raise ValueError(f"Error downloading NLTK {resource}: {e}")
 
-    doc = nlp(text)  # Process the single text directly
-    sents = [s.text.strip() for s in doc.sents if s.text.strip()]
-    return sents if sents else [text]
+    try:
+        sents = sent_tokenize(text)
+        sents = [s.strip() for s in sents if s.strip()]
+        return sents if sents else [text]
+    except Exception as e:
+        raise ValueError(f"NLTK sent_tokenize error: {e}")
+
 
 # TextTiling method
 _SIMPLE_EN_STOPWORDS = {

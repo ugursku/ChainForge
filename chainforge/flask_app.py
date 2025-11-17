@@ -21,7 +21,7 @@ from collections import defaultdict
 def IS_RAG_AVAILABLE():
     from importlib.util import find_spec
     try:
-        packages = ["langchain", "pyarrow", "lancedb", "sentence_transformers", "chonkie", "rank_bm25", "spacy", "numpy", "nltk"]
+        packages = ["langchain", "pyarrow", "lancedb", "sentence_transformers", "chonkie", "rank_bm25", "numpy", "nltk"]
         for package in packages:
             if find_spec(package) is None:
                 return False

@@ -6,8 +6,8 @@ It also allows for filtering tokens based on their length.
 
 The issue is that gensim is no longer actively maintained and 
 requires a specific version of numpy to work properly (<2.0).
-and this version is not compatible with the latest versions of other libraries, 
-specifically spacy and thinc. This is a workaround to use the simple_preprocess 
+and this version is not compatible with the latest versions of other libraries. 
+This is a workaround to use the simple_preprocess 
 function without installing gensim as a dependency.
 
 The code in this file is copied from the Gensim library. 

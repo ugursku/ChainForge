@@ -3,7 +3,7 @@ from chainforge.rag.chunkers import (
     chonkie_token, chonkie_sentence, chonkie_recursive, chonkie_semantic, 
     chonkie_sdpm, chonkie_late, chonkie_neural, overlapping_langchain_textsplitter,
     overlapping_openai_tiktoken, overlapping_huggingface_tokenizers,
-    syntax_spacy, syntax_texttiling
+    syntax_nltk, syntax_texttiling
 )
 
 class TestChonkieChunking:
@@ -145,8 +145,8 @@ class TestChonkieChunking:
     for chunk in chunks:
       assert isinstance(chunk, str)
   
-  def test_syntax_spacy(self):
-    chunker = syntax_spacy
+  def test_syntax_nltk(self):
+    chunker = syntax_nltk
     chunks = chunker(self.dummy_document)
     assert isinstance(chunks, list)
     assert len(chunks) > 0

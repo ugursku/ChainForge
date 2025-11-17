@@ -15,9 +15,8 @@ tiktoken
 langchain
 langchain-core
 langchain-community
-nltk
+nltk>=3.8
 transformers
-spacy
 scikit-learn>=1.4.0
 sentence-transformers
 rank-bm25
