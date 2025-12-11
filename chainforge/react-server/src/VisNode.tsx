@@ -776,6 +776,9 @@ export const VisView = forwardRef<VisViewRef, VisViewProps>(
           }
 
           const shortnames = genUniqueShortnames(names);
+          const yLabelShortnames = genUniqueShortnames(
+            new Set(responses.map(resp_to_x)),
+          );
           for (const name of names) {
             let x_items: EvaluationScore[] = [];
             let text_items: string[] = [];
@@ -786,8 +789,10 @@ export const VisView = forwardRef<VisViewRef, VisViewProps>(
                 const eval_res = get_items(r.eval_res).filter(
                   (i) => i === name,
                 );
+                const rawLabel = resp_to_x(r);
+                const yLabel = yLabelShortnames[rawLabel] ?? rawLabel;
                 x_items = x_items.concat(
-                  new Array(eval_res.length).fill(resp_to_x(r)),
+                  new Array(eval_res.length).fill(yLabel),
                 );
               });
             } else {

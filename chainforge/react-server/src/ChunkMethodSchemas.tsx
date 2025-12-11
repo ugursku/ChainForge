@@ -8,14 +8,14 @@ export const OverlappingOpenAITiktokenSchema: ModelSettingsDict = {
   description: "Chunk text using the OpenAI tiktoken library with overlap.",
   schema: {
     type: "object",
-    required: ["max_tokens", "overlap_tokens"],
+    required: ["model", "chunk_size", "chunk_overlap"],
     properties: {
       model: {
         type: "string",
         default: "gpt-3.5-turbo",
         title: "Model",
         description:
-          "Model to use for tokenizing. See tiktoken API docs for options.",
+          "OpenAI model (e.g. gpt-4o) or direct tiktoken tokenizer name (e.g. cl100k_base); OpenAI models auto-map to the correct tokenizer.",
       },
       chunk_size: {
         type: "number",
@@ -190,8 +190,10 @@ export const ChonkieSentenceSchema: ModelSettingsDict = {
       },
       chunk_size: {
         type: "number",
-        default: 512,
+        default: 1,
         title: "Max tokens per chunk",
+        description:
+          "Default 1 keeps each chunk to a single sentence. Increase to group multiple sentences up to the given token count.",
       },
       chunk_overlap: {
         type: "number",
@@ -296,12 +298,12 @@ export const ChonkieRecursiveSchema: ModelSettingsDict = {
 };
 
 /**
- * Chonkie Semantic Chunker
+ * Chonkie Semantic Chunker (Consolidated)
  */
 export const ChonkieSemanticSchema: ModelSettingsDict = {
   fullName: "Chonkie Semantic Chunker",
   description:
-    "Chunk text by semantic similarity with embedding-based segmentation via Chonkie library.",
+    "Chunk text by semantic similarity. Set 'skip_window' > 0 to enable SDPM (Double-Pass Merging).",
   schema: {
     type: "object",
     required: ["embedding_model", "chunk_size", "threshold"],
@@ -326,19 +328,14 @@ export const ChonkieSemanticSchema: ModelSettingsDict = {
         title: "Max tokens per chunk",
       },
       threshold: {
-        type: "string",
-        default: "auto",
+        type: "number",
+        default: 0.8,
         title: "Similarity threshold",
         description:
-          "When in the range [0,1], denotes the similarity threshold to consider sentences similar. When in the range (1,100], interprets the given value as a percentile threshold. When set to 'auto', the threshold is automatically calculated.",
-      },
-      mode: {
-        type: "string",
-        default: "window",
-        title: "Chunking mode",
-        description:
-          "Mode for grouping sentences, either “cumulative” or “window",
-        enum: ["window", "cumulative"],
+          "Value between 0-1. Higher values require sentences to be more similar to stay in the same chunk.",
+        minimum: 0,
+        maximum: 1,
+        step: 0.01,
       },
       similarity_window: {
         type: "number",
@@ -352,181 +349,33 @@ export const ChonkieSemanticSchema: ModelSettingsDict = {
         default: 1,
         title: "Min sentences per chunk",
       },
-      min_chunk_size: {
-        type: "number",
-        default: 0,
-        title: "Min chunk size (optional)",
-        description: "Leave as 0 to use default behavior",
-      },
       min_characters_per_sentence: {
         type: "number",
         default: 12,
         title: "Min characters per sentence",
-      },
-      threshold_step: {
-        type: "number",
-        default: 0.01,
-        title: "Threshold step size",
-      },
-      delim: {
-        type: "string",
-        default: '[".", "!", "?", "\\n\\n"]',
-        title: "Sentence delimiters (JSON array)",
-      },
-    },
-  },
-  uiSchema: {
-    mode: {
-      "ui:widget": "select",
-    },
-    threshold: {
-      "ui:help": "Use 'auto' for automatic threshold detection.",
-    },
-    delim: {
-      "ui:help": "JSON array of delimiter characters",
-    },
-  },
-  postprocessors: {
-    threshold: (value: string | number | boolean): string | number => {
-      if (value === "auto") return "auto";
-      if (typeof value === "number") return value;
-      if (typeof value === "string") {
-        try {
-          const num = parseFloat(value);
-          if (!isNaN(num)) return num;
-        } catch (e) {}
-      }
-      return "auto";
-    },
-    min_chunk_size: (value: string | number | boolean): number | null => {
-      if (typeof value === "number") {
-        return value > 0 ? value : null;
-      }
-      return null;
-    },
-  },
-};
-
-/**
- * Chonkie SDPM Chunker
- */
-export const ChonkieSDPMSchema: ModelSettingsDict = {
-  fullName: "Chonkie SDPM Chunker",
-  description:
-    "Chunk text using Sentence-level Divergence-based Progressive Merging via Chonkie library.",
-  schema: {
-    type: "object",
-    required: ["embedding_model", "chunk_size", "threshold"],
-    properties: {
-      embedding_model: {
-        type: "string",
-        default: "minishlab/potion-base-8M",
-        title: "Embedding Model",
-        description:
-          "Model to use for embeddings. See Chonkie docs for options.",
-      },
-      embedding_local_path: {
-        type: "string",
-        default: "",
-        title: "Embedding Local Path",
-        description:
-          "Local path for model to use for embeddings (only needed if cant download through Chonkie).",
-      },
-      chunk_size: {
-        type: "number",
-        default: 512,
-        title: "Max tokens per chunk",
-      },
-      threshold: {
-        type: "string",
-        default: "auto",
-        title: "Similarity threshold",
-        description:
-          "When in the range [0,1], denotes the similarity threshold to consider sentences similar. When in the range (1,100], interprets the given value as a percentile threshold. When set to “auto”, the threshold is automatically calculated.",
-      },
-      mode: {
-        type: "string",
-        default: "window",
-        title: "Chunking mode",
-        description:
-          "Mode for grouping sentences, either 'cumulative' or 'window'",
-        enum: ["window", "cumulative"],
-      },
-      similarity_window: {
-        type: "number",
-        default: 1,
-        title: "Similarity window",
-        description:
-          "Number of sentences to consider for similarity threshold calculation",
-      },
-      min_sentences: {
-        type: "number",
-        default: 1,
-        title: "Min sentences per chunk",
-      },
-      min_chunk_size: {
-        type: "number",
-        default: 2,
-        title: "Min chunk size",
-      },
-      min_characters_per_sentence: {
-        type: "number",
-        default: 12,
-        title: "Min characters per sentence",
-      },
-      threshold_step: {
-        type: "number",
-        default: 0.01,
-        title: "Threshold step size",
       },
       skip_window: {
         type: "number",
-        default: 1,
-        title: "Skip window",
-        description: "Window size for skipping in SDPM algorithm",
-      },
-      delim: {
-        type: "string",
-        default: '[".", "!", "?", "\\n\\n"]',
-        title: "Sentence delimiters (JSON array)",
-      },
-      include_delim: {
-        type: "string",
-        default: "",
-        title: "Include delimiters in chunks (prev, next, or none), optional",
+        default: 0,
+        title: "Skip window (SDPM)",
+        description:
+          "If set to 0, performs standard Semantic chunking. If > 0, performs SDPM (Semantic Double-Pass Merging).",
       },
     },
   },
   uiSchema: {
-    mode: {
-      "ui:widget": "select",
-    },
     threshold: {
-      "ui:help": "Use 'auto' for automatic threshold detection",
+      "ui:widget": "updown",
     },
-    delim: {
-      "ui:help": "JSON array of delimiter characters",
+    skip_window: {
+      "ui:widget": "updown",
     },
   },
   postprocessors: {
-    threshold: (value: string | number | boolean): string | number => {
-      if (value === "auto") return "auto";
+    threshold: (value: string | number | boolean): number => {
       if (typeof value === "number") return value;
-      if (typeof value === "string") {
-        try {
-          const num = parseFloat(value);
-          if (!isNaN(num)) return num;
-        } catch (e) {}
-      }
-      return "auto";
-    },
-    include_delim: (value: string | number | boolean): string | null => {
-      if (typeof value !== "string") return null;
-      if (value !== "prev" && value !== "next") {
-        return null;
-      } else {
-        return value;
-      }
+      if (typeof value === "string") return parseFloat(value);
+      return 0.8;
     },
   },
 };
@@ -601,89 +450,102 @@ export const ChunkMethodSchemas: { [baseMethod: string]: ModelSettingsDict } = {
   chonkie_sentence: ChonkieSentenceSchema,
   chonkie_recursive: ChonkieRecursiveSchema,
   chonkie_semantic: ChonkieSemanticSchema,
-  chonkie_sdpm: ChonkieSDPMSchema,
   chonkie_late: ChonkieLateSchema,
 };
 
 export const ChunkMethodGroups = [
   {
-    label: "Chonkie 🐿️",
+    label: "Token-Based",
     items: [
       {
         baseMethod: "chonkie_token",
         methodType: "Chonkie",
         name: "Token Chunker",
         emoji: "🐿️",
+        description:
+          "Split text into fixed-size token chunks with optional overlap. Fastest and cheapest option.",
       },
-      {
-        baseMethod: "chonkie_sentence",
-        methodType: "Chonkie",
-        name: "Sentence Chunker",
-        emoji: "✂️",
-      },
-      {
-        baseMethod: "chonkie_recursive",
-        methodType: "Chonkie",
-        name: "Recursive Chunker",
-        emoji: "🔄",
-      },
-      {
-        baseMethod: "chonkie_semantic",
-        methodType: "Chonkie",
-        name: "Semantic Chunker",
-        emoji: "🤖",
-      },
-      {
-        baseMethod: "chonkie_sdpm",
-        methodType: "Chonkie",
-        name: "SDPM Chunker",
-        emoji: "🧬",
-      },
-      {
-        baseMethod: "chonkie_late",
-        methodType: "Chonkie",
-        name: "Late Chunker",
-        emoji: "⏳",
-      },
-    ],
-  },
-  {
-    label: "Overlapping Chunking",
-    items: [
       {
         baseMethod: "overlapping_openai_tiktoken",
         methodType: "Overlapping Chunking",
         name: "OpenAI tiktoken",
         emoji: "🤖",
+        description:
+          "Use OpenAI’s tiktoken to count tokens for chunk sizes and overlaps.",
       },
       {
         baseMethod: "overlapping_huggingface_tokenizers",
         methodType: "Overlapping Chunking",
         name: "HuggingFace Tokenizers",
         emoji: "🤗",
+        description:
+          "Use a HuggingFace tokenizer to count tokens for chunk sizes and overlaps.",
       },
     ],
   },
   {
-    label: "Syntax-Based Chunking",
+    label: "Structure-Based",
     items: [
+      {
+        baseMethod: "chonkie_sentence",
+        methodType: "Chonkie",
+        name: "Sentence Chunker",
+        emoji: "✂️",
+        description:
+          "Split on sentence boundaries. Nice for QA / summarization where you want readable chunks.",
+      },
       {
         baseMethod: "markdown_header",
         methodType: "Markdown",
         name: "Markdown Chunker",
         emoji: "📝",
+        description:
+          "Respect markdown headings when splitting (e.g. #, ##). Great for docs and notebooks.",
       },
       {
         baseMethod: "syntax_nltk",
         methodType: "Syntax-Based Chunking",
         name: "NLTK Sentence Splitter",
         emoji: "🐍",
+        description:
+          "Sentence splitting powered by NLTK. More robust for messy text.",
       },
       {
         baseMethod: "syntax_texttiling",
         methodType: "Syntax-Based Chunking",
         name: "Stopword Chunker",
         emoji: "📑",
+        description:
+          "Topic-based segmentation using TextTiling. Helps break long text into sections based on lexical shifts.",
+      },
+      {
+        baseMethod: "chonkie_recursive",
+        methodType: "Chonkie",
+        name: "Recursive Chunker",
+        emoji: "🔄",
+        description:
+          "Try large chunks first and recursively split until under a token limit. Good when you want big chunks but must respect model limits.",
+      },
+    ],
+  },
+  {
+    label: "Semantic / Embedding-Based",
+    items: [
+      {
+        baseMethod: "chonkie_semantic",
+        methodType: "Chonkie",
+        name: "Semantic Chunker",
+        emoji: "🤖",
+        description:
+          "Use embeddings to cut at semantically meaningful boundaries (topic changes, sections). More accurate but more expensive.",
+      },
+      {
+        baseMethod: "chonkie_late",
+        methodType: "Chonkie",
+        name: "Late Chunker",
+        emoji: "⏳",
+        description:
+          "Apply length-based chunking at run time instead of precomputing chunks.",
       },
     ],
   },
