@@ -38,6 +38,41 @@ def normalize_query(raw_q: Any) -> Tuple[Dict[str, Any], str]:
     )
     return q_obj, text
 
+@RetrievalMethodRegistry.register("embedding")
+def handle_embedding(chunk_objs, chunk_embeddings, query_objs, query_embeddings, settings, db_path):
+    """
+    Unified embedding-based retrieval handler that delegates to the appropriate
+    vector store backend (LanceDB or FAISS) based on storage_backend settings.
+    
+    The similarity metric is passed through to the vector store, which handles
+    the actual similarity computation.
+    """
+    storage_backend = settings.get("storage_backend", "lancedb")
+    similarity_metric = settings.get("similarity_metric", "cosine")
+    
+    # Map similarity metric names to backend-specific metric names
+    # This will be used by the vector store handlers
+    metric_map = {
+        "cosine": "cosine",
+        "euclidean": "l2",
+        "dot_product": "dot",
+    }
+    settings["metric"] = metric_map.get(similarity_metric, "cosine")
+    
+    # Route to the appropriate vector store handler
+    if storage_backend == "lancedb":
+        handler = RetrievalMethodRegistry.get_handler("lancedb_vector_store")
+        if handler:
+            return handler(chunk_objs, chunk_embeddings, query_objs, query_embeddings, settings, db_path)
+        raise ValueError("LanceDB handler not found")
+    elif storage_backend == "faiss":
+        handler = RetrievalMethodRegistry.get_handler("faiss_vector_store")
+        if handler:
+            return handler(chunk_objs, chunk_embeddings, query_objs, query_embeddings, settings, db_path)
+        raise ValueError("FAISS handler not found")
+    else:
+        raise ValueError(f"Unsupported storage backend: {storage_backend}. Use 'lancedb' or 'faiss'.")
+
 @RetrievalMethodRegistry.register("bm25")
 def handle_bm25(chunk_objs: List[Dict], query_objs: List[Any], settings: Dict[str, Any]) -> List[Dict]:
     from rank_bm25 import BM25Okapi
@@ -247,135 +282,6 @@ def handle_keyword_overlap(chunk_objs: List[Dict], query_objs: List[Any], settin
             "retrieved_chunks": retrieved
         })
 
-    return results
-
-# Helper functions for similarity calculations
-def cosine_similarity(vec1, vec2):
-    """Compute cosine similarity between two vectors"""
-    dot_product = sum(a * b for a, b in zip(vec1, vec2))
-    norm_a = math.sqrt(sum(a * a for a in vec1))
-    norm_b = math.sqrt(sum(b * b for b in vec2))
-    return dot_product / (norm_a * norm_b) if norm_a * norm_b > 0 else 0
-
-def manhattan_distance(vec1, vec2):
-    """Compute Manhattan distance between two vectors"""
-    return sum(abs(a - b) for a, b in zip(vec1, vec2))
-
-def euclidean_distance(vec1, vec2):
-    """Compute Euclidean distance between two vectors"""
-    return math.sqrt(sum((a - b) ** 2 for a, b in zip(vec1, vec2)))
-
-@RetrievalMethodRegistry.register("cosine")
-def handle_cosine_similarity(chunks, chunk_embeddings, query_objs, query_embeddings, settings, db_path):
-    """
-    Retrieve chunks using cosine similarity between embeddings.
-    
-    This implementation uses a min-heap to keep only the top-k results in memory.
-    """
-    top_k = settings.get("top_k", 5)
-    results = []
-    
-    for (query_obj, query_emb) in zip(query_objs, query_embeddings):
-        # Use a min heap to keep track of top k results
-        min_heap = []
-        
-        # Calculate similarities and maintain heap of size top_k
-        for i, (chunk, chunk_emb) in enumerate(zip(chunks, chunk_embeddings)):
-            sim = cosine_similarity(chunk_emb, query_emb)
-            
-            # If heap is not full, add the item
-            if len(min_heap) < top_k:
-                heapq.heappush(min_heap, (sim, i))
-            # If similarity is higher than the smallest in heap, replace it
-            elif sim > min_heap[0][0]:
-                heapq.heappushpop(min_heap, (sim, i))
-        
-        # Convert heap to sorted results (highest similarity first)
-        retrieved = []
-        for sim, i in sorted(min_heap, reverse=True):
-            chunk = chunks[i]
-            retrieved.append({
-                "text": chunk.get("text", ""),
-                "similarity": float(sim),
-                "docTitle": chunk.get("docTitle", ""),
-                "chunkId": chunk.get("chunkId", ""),
-            })
-        
-        results.append({'query_object': query_obj, 'retrieved_chunks': retrieved})
-    
-    return results
-
-@RetrievalMethodRegistry.register("manhattan")
-def handle_manhattan(chunk_objs, chunk_embeddings, query_objs, query_embeddings, settings, db_path):
-    """
-    Retrieve chunks using Manhattan distance between embeddings.
-    """
-    top_k = settings.get("top_k", 5)
-    results = []
-    
-    for query_obj, query_emb in zip(query_objs, query_embeddings):
-        # Use a min heap to keep track of top k results
-        min_heap = []
-        
-        # Calculate similarities and maintain heap of size top_k
-        for i, (chunk, chunk_emb) in enumerate(zip(chunk_objs, chunk_embeddings)):
-            # Lower Manhattan distance = higher similarity
-            distance = manhattan_distance(chunk_emb, query_emb)
-            sim = 1.0 / (1.0 + distance)  # Transform to similarity score
-            
-            if len(min_heap) < top_k:
-                heapq.heappush(min_heap, (sim, i))
-            elif sim > min_heap[0][0]:
-                heapq.heappushpop(min_heap, (sim, i))
-        
-        # Convert heap to sorted results
-        retrieved = []
-        for sim, i in sorted(min_heap, reverse=True):
-            chunk = chunk_objs[i]
-            retrieved.append({
-                "text": chunk.get("text", ""),
-                "similarity": float(sim),
-                "docTitle": chunk.get("docTitle", ""),
-                "chunkId": chunk.get("chunkId", ""),
-            })
-        
-        results.append({'query_object': query_obj, 'retrieved_chunks': retrieved})
-    
-    return results
-
-@RetrievalMethodRegistry.register("euclidean")
-def handle_euclidean(chunk_objs, chunk_embeddings, query_objs, query_embeddings, settings, db_path):
-    """
-    Retrieve chunks using Euclidean distance between embeddings.
-    """
-    top_k = settings.get("top_k", 5)
-    results = []
-    
-    for query_obj, query_emb in zip(query_objs, query_embeddings):
-        min_heap = []
-        
-        for i, (chunk, chunk_emb) in enumerate(zip(chunk_objs, chunk_embeddings)):
-            distance = euclidean_distance(chunk_emb, query_emb)
-            sim = 1.0 / (1.0 + distance)  # Transform to similarity score
-            
-            if len(min_heap) < top_k:
-                heapq.heappush(min_heap, (sim, i))
-            elif sim > min_heap[0][0]:
-                heapq.heappushpop(min_heap, (sim, i))
-        
-        # Convert heap to sorted results
-        retrieved = []
-        for sim, i in sorted(min_heap, reverse=True):
-            chunk = chunk_objs[i]
-            retrieved.append({
-                "text": chunk.get("text", ""),
-                "similarity": float(sim),
-                "docTitle": chunk.get("docTitle", ""),
-                "chunkId": chunk.get("chunkId", ""),
-            })
-        
-        results.append({'query_object': query_obj, 'retrieved_chunks': retrieved})
-    
     return results
 
 @RetrievalMethodRegistry.register("clustered")

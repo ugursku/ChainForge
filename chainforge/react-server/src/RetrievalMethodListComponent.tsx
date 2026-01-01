@@ -84,6 +84,13 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
   methodItem,
   onSettingsUpdate,
 }) => {
+  const [currentSettings, setCurrentSettings] = React.useState(methodItem.settings);
+  
+  // Update local state when methodItem changes
+  React.useEffect(() => {
+    setCurrentSettings(methodItem.settings);
+  }, [methodItem.settings]);
+
   const builtin = RetrievalMethodSchemas[methodItem.baseMethod];
 
   // With normalized store data, a single custom check suffices.
@@ -127,57 +134,58 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     }
   }
 
-  // Built-ins: optionally augment with embedding model picker
+  // Built-ins: Update embedding model enum based on selected provider
   if (
     !isCustom &&
     methodItem.needsEmbeddingModel &&
-    methodItem.embeddingProvider &&
-    builtin
+    builtin &&
+    finalSchema?.properties
   ) {
+    // Get the currently selected provider from current settings
+    const selectedProvider = currentSettings?.embeddingProvider || 
+      (finalSchema.properties as any).embeddingProvider?.default || 
+      "huggingface";
+    
     const provider = embeddingProviders.find(
-      (p) => p.value === methodItem.embeddingProvider,
+      (p) => p.value === selectedProvider,
     );
-    if (provider) {
-      if (provider.models && provider.models.length > 0) {
-        finalSchema = {
-          ...(finalSchema as any),
-          properties: {
-            ...(finalSchema?.properties ?? {}),
-            embeddingModel: {
-              type: "string",
-              title: "Embedding Model",
-              enum: provider.models,
-              default: provider.models[0],
-            },
-            embeddingLocalPath: {
-              type: "string",
-              title: "Local path for embedding model (optional)",
-              description:
-                "Only needed if you prefer local files instead of downloading the model automatically.",
-            },
-          },
-        } as RJSFSchema;
-        finalUiSchema = {
-          ...(finalUiSchema || {}),
+    
+    if (provider && provider.models && provider.models.length > 0) {
+      // Update the embeddingModel enum to match the selected provider's models
+      finalSchema = {
+        ...finalSchema,
+        properties: {
+          ...finalSchema.properties,
           embeddingModel: {
-            "ui:widget": "datalist",
+            ...(finalSchema.properties as any).embeddingModel,
+            enum: provider.models,
           },
-        } as UiSchema;
-      } else {
-        finalSchema = {
-          ...(finalSchema as any),
-          properties: {
-            ...(finalSchema?.properties ?? {}),
-            embeddingLocalPath: {
-              type: "string",
-              title: "Embedding Model Name",
-              description: "Specify the name of the embedding model to use.",
-            },
-          },
-        } as RJSFSchema;
-      }
+        },
+      } as RJSFSchema;
     }
   }
+  
+  const handleSettingsChange = (e: any) => {
+    const newSettings = e.formData;
+    
+    // Check if embeddingProvider changed
+    if (
+      methodItem.needsEmbeddingModel &&
+      currentSettings?.embeddingProvider &&
+      newSettings.embeddingProvider !== currentSettings.embeddingProvider
+    ) {
+      // Provider changed - update model to first model of new provider
+      const newProvider = embeddingProviders.find(
+        (p) => p.value === newSettings.embeddingProvider,
+      );
+      if (newProvider && newProvider.models && newProvider.models.length > 0) {
+        newSettings.embeddingModel = newProvider.models[0];
+      }
+    }
+    
+    setCurrentSettings(newSettings);
+    onSettingsUpdate(newSettings);
+  };
 
   const hasProps =
     !!finalSchema && Object.keys(finalSchema.properties ?? {}).length > 0;
@@ -209,8 +217,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         schema={finalSchema as RJSFSchema}
         uiSchema={(finalUiSchema || {}) as UiSchema}
         validator={validator}
-        formData={methodItem.settings}
-        onChange={(e) => onSettingsUpdate(e.formData)}
+        formData={currentSettings}
+        onChange={handleSettingsChange}
         widgets={{ datalist: DatalistWidget }}
       >
         {/* live update via onChange */}
@@ -676,8 +684,12 @@ export const RetrievalMethodListContainer = forwardRef<
             {} as Record<string, any>,
           );
         }
-        if (m.needsEmbeddingModel && provider?.models?.length) {
-          defaultSettings.embeddingModel = provider.models[0];
+        // Override embedding provider and model if passed explicitly
+        if (m.needsEmbeddingModel && embeddingProviderValue) {
+          defaultSettings.embeddingProvider = embeddingProviderValue;
+          if (provider?.models?.length) {
+            defaultSettings.embeddingModel = provider.models[0];
+          }
         }
       }
       defaultSettings.shortName = uniqueName;

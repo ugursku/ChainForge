@@ -326,7 +326,7 @@ class LancedbVectorStore(VectorStore):
             query_embedding: The query embedding vector
             k: Number of results to return
             **kwargs: Additional search parameters:
-                - distance_metric: Distance metric for search ('l2', 'cosine', or 'dot')
+                - distance_metric: Distance metric for search ('cosine', 'euclidean', 'dot_product')
                 - method: Search method ('similarity', 'mmr', 'hybrid')
                 - lambda_param: Balance between relevance and diversity for MMR (0-1)
                 - keyword: Keyword for hybrid search
@@ -338,8 +338,19 @@ class LancedbVectorStore(VectorStore):
         """
         if self.table is None:
             return []
-            
+        
+        # Map schema metric names to LanceDB metric names
         distance_metric = kwargs.get("distance_metric", "l2")
+        metric_mapping = {
+            "euclidean": "l2",
+            "dot_product": "dot",
+            "cosine": "cosine",
+            # Also support legacy names
+            "l2": "l2",
+            "dot": "dot"
+        }
+        distance_metric = metric_mapping.get(distance_metric, "l2")
+        
         method = kwargs.get("method", "similarity")
         filters = kwargs.get("filters", None)
 
@@ -643,7 +654,7 @@ class FaissVectorStore(VectorStore):
             db_path: Directory where FAISS index and metadata are stored
             embedding_func: Optional function to generate embeddings
             index_name: Name of the FAISS index file (without extension)
-            metric: 'l2' or 'ip' (inner product/cosine)
+            metric: 'l2', 'ip', 'euclidean', 'dot_product', or 'cosine'
         """
         super().__init__(embedding_func, db_path, db_mode)
 
@@ -652,7 +663,18 @@ class FaissVectorStore(VectorStore):
 
         self.db_path = db_path
         self.index_name = index_name
-        self.metric = metric.lower()
+        
+        # Map schema metric names to FAISS metric names
+        metric_mapping = {
+            "euclidean": "l2",
+            "dot_product": "ip",
+            "cosine": "ip",  # Cosine is IP with normalized vectors
+            # Also support legacy names
+            "l2": "l2",
+            "ip": "ip"
+        }
+        self.metric = metric_mapping.get(metric.lower(), "l2")
+        
         self.index_file = os.path.join(db_path, f"{index_name}.faiss")
         self.meta_file = os.path.join(db_path, f"{index_name}_meta.pkl")
 

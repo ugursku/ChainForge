@@ -284,26 +284,47 @@ export const KeywordOverlapSchema: ModelSettingsDict = {
 };
 
 /**
- * Cosine Similarity Schema
+ * Unified Embedding-based Similarity Schema
+ * Consolidates cosine, manhattan, euclidean, and vector store approaches
  */
-export const CosineSimilaritySchema: ModelSettingsDict = {
-  fullName: "Cosine Similarity",
-  description: "Retrieves documents using cosine similarity between embeddings",
+export const EmbeddingSimilaritySchema: ModelSettingsDict = {
+  fullName: "Embedding-based Similarity",
+  description: "Retrieves documents using semantic similarity between embeddings",
   schema: {
     type: "object",
-    required: ["top_k", "similarity_threshold"],
+    required: ["top_k", "similarity_threshold", "similarity_metric", "storage_backend"],
     properties: {
       shortName: {
         type: "string",
-        default: "Cosine Similarity",
+        default: "Embedding Similarity",
         title: "Nickname",
         description:
           "Unique identifier to appear in ChainForge. Keep it short.",
+      },
+      embeddingProvider: {
+        type: "string",
+        title: "Embedding Provider",
+        enum: embeddingProviders.map(p => p.value),
+        default: "huggingface",
+        description: "Select the embedding provider to use",
+      },
+      embeddingModel: {
+        type: "string",
+        title: "Embedding Model",
+        default: "sentence-transformers/all-MiniLM-L6-v2",
+        description: "Select or enter a custom embedding model name",
+      },
+      embeddingLocalPath: {
+        type: "string",
+        title: "Local Model Path (optional)",
+        default: "",
+        description: "Only needed if you prefer local files instead of downloading the model automatically.",
       },
       top_k: {
         type: "number",
         default: 5,
         title: "Top K Results",
+        description: "Number of most similar documents to retrieve",
       },
       similarity_threshold: {
         type: "number",
@@ -315,527 +336,66 @@ export const CosineSimilaritySchema: ModelSettingsDict = {
         description:
           "Minimum similarity percentage (0-100) required for a result to be considered relevant.",
       },
-      embeddingModel: {
+      similarity_metric: {
         type: "string",
-        title: "Embedding Model",
-        default: "",
+        default: "cosine",
+        title: "Similarity Metric",
+        enum: ["cosine", "euclidean", "dot_product"],
+        description: "How to measure similarity between embeddings",
       },
-    },
-  },
-  uiSchema: {
-    shortName: {
-      "ui:widget": "text",
-      "ui:options": {
-        placeholder: "Custom name for your retrieval method",
-      },
-    },
-    top_k: {
-      "ui:widget": "range",
-      "ui:options": {
-        min: 1,
-        max: 20,
-        step: 1,
-      },
-    },
-    similarity_threshold: {
-      "ui:widget": "range",
-      "ui:options": {
-        min: 0,
-        max: 1,
-        step: 0.05,
-      },
-    },
-    embeddingModel: {
-      "ui:widget": "select",
-    },
-  },
-  postprocessors: {},
-};
-
-/**
- * Manhattan Distance Schema
- */
-export const ManhattanDistanceSchema: ModelSettingsDict = {
-  fullName: "Manhattan distance",
-  description:
-    "Retrieves documents using manhattan distance between embeddings",
-  schema: {
-    type: "object",
-    required: ["top_k", "similarity_threshold", "pooling_strategy"],
-    properties: {
-      shortName: {
+      storage_backend: {
         type: "string",
-        default: "Manhattan distance",
-        title: "Nickname",
-        description:
-          "Unique identifier to appear in ChainForge. Keep it short.",
+        default: "lancedb",
+        title: "Storage Backend",
+        enum: ["lancedb", "faiss"],
+        description: "Where to store and search embeddings. LanceDB is simplest for persistence; FAISS for large-scale (requires separate installation) and possibly connecting to a pre-computed FAISS vector store on your local disk.",
       },
-      top_k: {
-        type: "number",
-        default: 5,
-        title: "Top K Results",
-      },
-      similarity_threshold: {
-        type: "number",
-        default: 50,
-        title: "Similarity Threshold (%)",
-        minimum: 0,
-        maximum: 100,
-        step: 1,
-        description:
-          "Minimum similarity percentage (0-100) required for a result to be considered relevant.",
-      },
-      pooling_strategy: {
-        type: "string",
-        default: "mean",
-        title: "Pooling Strategy",
-        enum: ["mean", "max", "cls"],
-      },
-      embeddingModel: {
-        type: "string",
-        title: "Embedding Model",
-        default: "",
-      },
-    },
-  },
-  uiSchema: {
-    shortName: {
-      "ui:widget": "text",
-      "ui:options": {
-        placeholder: "Custom name for your retrieval method",
-      },
-    },
-    top_k: {
-      "ui:widget": "range",
-      "ui:options": {
-        min: 1,
-        max: 20,
-        step: 1,
-      },
-    },
-    similarity_threshold: {
-      "ui:widget": "range",
-      "ui:options": {
-        min: 0,
-        max: 1,
-        step: 0.05,
-      },
-    },
-    pooling_strategy: {
-      "ui:widget": "select",
-    },
-    embeddingModel: {
-      "ui:widget": "select",
-    },
-  },
-  postprocessors: {},
-};
-
-/**
- * Euclidean Distance Schema
- */
-export const EuclideanDistanceSchema: ModelSettingsDict = {
-  fullName: "Euclidean distance",
-  description:
-    "Retrieves documents using euclidean distance between embeddings",
-  schema: {
-    type: "object",
-    required: ["top_k", "similarity_threshold", "vector_dimension"],
-    properties: {
-      shortName: {
-        type: "string",
-        default: "Euclidean distance",
-        title: "Nickname",
-        description:
-          "Unique identifier to appear in ChainForge. Keep it short.",
-      },
-      top_k: {
-        type: "number",
-        default: 5,
-        title: "Top K Results",
-      },
-      similarity_threshold: {
-        type: "number",
-        default: 50,
-        title: "Similarity Threshold (%)",
-        minimum: 0,
-        maximum: 100,
-        step: 1,
-        description:
-          "Minimum similarity percentage (0-100) required for a result to be considered relevant.",
-      },
-      vector_dimension: {
-        type: "number",
-        default: 768,
-        title: "Vector Dimension",
-      },
-      embeddingModel: {
-        type: "string",
-        title: "Embedding Model",
-        default: "",
-      },
-    },
-  },
-  uiSchema: {
-    shortName: {
-      "ui:widget": "text",
-      "ui:options": {
-        placeholder: "Custom name for your retrieval method",
-      },
-    },
-    top_k: {
-      "ui:widget": "range",
-      "ui:options": {
-        min: 1,
-        max: 20,
-        step: 1,
-      },
-    },
-    similarity_threshold: {
-      "ui:widget": "range",
-      "ui:options": {
-        min: 0,
-        max: 1,
-        step: 0.05,
-      },
-    },
-    vector_dimension: {
-      "ui:widget": "range",
-      "ui:options": {
-        min: 64,
-        max: 1536,
-        step: 64,
-      },
-    },
-    embeddingModel: {
-      "ui:widget": "select",
-    },
-  },
-  postprocessors: {},
-};
-
-/**
- * Clustered Embedding Schema
- */
-export const ClusteredEmbeddingSchema: ModelSettingsDict = {
-  fullName: "Clustered Embedding",
-  description:
-    "Retrieves documents using cosine similarity between a hybrid of sentence and topic embeddings",
-  schema: {
-    type: "object",
-    required: ["top_k", "similarity_threshold", "n_clusters"],
-    properties: {
-      shortName: {
-        type: "string",
-        default: "Clustered Embedding",
-        title: "Nickname",
-        description:
-          "Unique identifier to appear in ChainForge. Keep it short.",
-      },
-      top_k: {
-        type: "number",
-        default: 5,
-        title: "Top K Results",
-      },
-      similarity_threshold: {
-        type: "number",
-        default: 50,
-        title: "Similarity Threshold (%)",
-        minimum: 0,
-        maximum: 100,
-        step: 1,
-        description:
-          "Minimum similarity percentage (0-100) required for a result to be considered relevant.",
-      },
-      n_clusters: {
-        type: "number",
-        default: 5,
-        title: "Number of Clusters",
-      },
-      embeddingModel: {
-        type: "string",
-        title: "Embedding Model",
-        default: "",
-      },
-    },
-  },
-  uiSchema: {
-    shortName: {
-      "ui:widget": "text",
-      "ui:options": {
-        placeholder: "Custom name for your retrieval method",
-      },
-    },
-    top_k: {
-      "ui:widget": "range",
-      "ui:options": {
-        min: 1,
-        max: 20,
-        step: 1,
-      },
-    },
-    similarity_threshold: {
-      "ui:widget": "range",
-      "ui:options": {
-        min: 0,
-        max: 1,
-        step: 0.05,
-      },
-    },
-    n_clusters: {
-      "ui:widget": "range",
-      "ui:options": {
-        min: 2,
-        max: 20,
-        step: 1,
-      },
-    },
-    embeddingModel: {
-      "ui:widget": "select",
-    },
-  },
-  postprocessors: {},
-};
-
-/**
- * LanceDB Vectorstore
- */
-export const LANCEDBSchema: ModelSettingsDict = {
-  fullName: "LanceDB Vectorstore",
-  description:
-    "Persistent vector storage using LanceDB for efficient local similarity search.",
-  schema: {
-    type: "object",
-    required: [
-      "top_k",
-      "distance_metric",
-      "dbPath",
-      "tableName",
-      "search_method",
-    ],
-    properties: {
-      shortName: {
-        type: "string",
-        default: "LanceDB Vectorstore",
-        title: "Nickname",
-        description:
-          "Unique identifier to appear in ChainForge. Keep it short.",
-      },
-      top_k: {
-        type: "number",
-        default: 10,
-        title: "Top K Results",
-        description:
-          "The number of top matching results to retrieve from the LanceDB index.",
-      },
-      distance_metric: {
-        type: "string",
-        default: "l2",
-        title: "Distance Metric",
-        enum: ["l2", "cosine", "dot"],
-        description:
-          "Select the similarity measure used in LanceDB: L2 (Euclidean), Cosine, or Dot Product.",
-      },
-      dbPath: {
+      // Disable clustering method for now, too complex
+      // use_clustering: {
+      //   type: "boolean",
+      //   default: false,
+      //   title: "Enable Clustering",
+      //   description: "Pre-cluster documents to improve retrieval on large, diverse corpora",
+      // },
+      // n_clusters: {
+      //   type: "number",
+      //   default: 5,
+      //   title: "Number of Clusters",
+      //   description: "How many clusters to create (only used if clustering is enabled)",
+      // },
+      // LanceDB-specific settings
+      lancedb_path: {
         type: "string",
         default: "",
         title: "LanceDB Path",
-        description:
-          "The file path where the LanceDB database will be saved or loaded from.",
+        description: "File path for LanceDB database (required if using LanceDB backend)",
       },
-      tableName: {
+      lancedb_table: {
         type: "string",
         default: "embeddings",
-        title: "Table Name",
-        description:
-          "Name of the table to use for vector storage within the LanceDB database.",
+        title: "LanceDB Table Name",
+        description: "Table name within LanceDB",
       },
-      search_method: {
+      lancedb_search_method: {
         type: "string",
         default: "similarity",
-        title: "Search Method",
+        title: "LanceDB Search Method",
         enum: ["similarity", "mmr", "hybrid"],
-        description:
-          "Choose the search method: standard similarity, Maximum Marginal Relevance (mmr), or hybrid (vector + keyword).",
+        description: "Search strategy: standard similarity, MMR (diverse results), or hybrid (vector + keyword)",
       },
-      lambda_param: {
-        type: "number",
-        default: 0.5,
-        minimum: 0,
-        maximum: 1,
-        step: 0.01,
-        title: "MMR Lambda Parameter",
-        description:
-          "Balance between relevance and diversity for MMR search (only used if search_method is 'mmr').",
-      },
-      keyword: {
+      // FAISS-specific settings
+      faiss_path: {
         type: "string",
         default: "",
-        title: "Hybrid Search Keyword",
-        description:
-          "Keyword to use for hybrid search (only used if search_method is 'hybrid').",
+        title: "FAISS Index Path",
+        description: "File path to save/load FAISS index (required if using FAISS backend)",
       },
-      blend: {
-        type: "number",
-        default: 0.5,
-        minimum: 0,
-        maximum: 1,
-        step: 0.01,
-        title: "Hybrid Blend Parameter",
-        description:
-          "Balance between vector and keyword scores for hybrid search (only used if search_method is 'hybrid').",
-      },
-      filters: {
-        type: "string",
-        default: "",
-        title: "LanceDB Filters",
-        description:
-          "Optional LanceDB filter expression to restrict the search.",
-      },
-    },
-  },
-  uiSchema: {
-    shortName: {
-      "ui:widget": "text",
-      "ui:options": {
-        placeholder: "Custom name for your retrieval method",
-      },
-    },
-    top_k: {
-      "ui:widget": "range",
-      "ui:options": {
-        min: 1,
-        max: 20,
-        step: 1,
-      },
-    },
-    distance_metric: {
-      "ui:widget": "select",
-      "ui:options": {
-        enumOptions: [
-          { label: "L2 (Euclidean Distance)", value: "l2" },
-          { label: "Cosine Similarity", value: "cosine" },
-          { label: "Dot Product", value: "dot" },
-        ],
-      },
-    },
-    dbPath: {
-      "ui:widget": "text",
-      "ui:options": {
-        placeholder: "Enter the path to the LanceDB database",
-      },
-    },
-    tableName: {
-      "ui:widget": "text",
-      "ui:options": {
-        placeholder: "Table name (default: embeddings)",
-      },
-    },
-    search_method: {
-      "ui:widget": "select",
-      "ui:options": {
-        enumOptions: [
-          { label: "Similarity", value: "similarity" },
-          { label: "Maximum Marginal Relevance (MMR)", value: "mmr" },
-          { label: "Hybrid (vector + keyword)", value: "hybrid" },
-        ],
-      },
-    },
-    lambda_param: {
-      "ui:widget": "range",
-      "ui:options": {
-        min: 0,
-        max: 1,
-        step: 0.01,
-      },
-    },
-    keyword: {
-      "ui:widget": "text",
-      "ui:options": {
-        placeholder: "Keyword for hybrid search",
-      },
-    },
-    blend: {
-      "ui:widget": "range",
-      "ui:options": {
-        min: 0,
-        max: 1,
-        step: 0.01,
-      },
-    },
-    filters: {
-      "ui:widget": "text",
-      "ui:options": {
-        placeholder: "Optional LanceDB filter expression",
-      },
-    },
-  },
-  postprocessors: {},
-};
-
-/**
- * FAISS Vectorstore
- */
-export const FAISSSchema: ModelSettingsDict = {
-  fullName: "FAISS Vectorstore",
-  description:
-    "Persistent vector storage using FAISS for efficient similarity search.",
-  schema: {
-    type: "object",
-    required: [
-      "top_k",
-      "similarity_threshold",
-      "faissMode",
-      "faissPath",
-      "metric",
-    ],
-    properties: {
-      shortName: {
-        type: "string",
-        default: "FAISS Vectorstore",
-        title: "Nickname",
-        description:
-          "Unique identifier to appear in ChainForge. Keep it short.",
-      },
-      top_k: {
-        type: "number",
-        default: 10,
-        title: "Top K Results",
-        description:
-          "The number of top matching results to retrieve from the FAISS index.",
-      },
-      similarity_threshold: {
-        type: "number",
-        default: 0,
-        title: "Similarity Threshold (%)",
-        minimum: 0,
-        maximum: 100,
-        step: 1,
-        description:
-          "Minimum similarity percentage (0-100) required for a result to be considered relevant.",
-      },
-      faissMode: {
+      faiss_mode: {
         type: "string",
         default: "create",
         title: "FAISS Mode",
         enum: ["create", "load"],
-        description:
-          "Select whether to create a new FAISS index or load an existing one.",
-      },
-      faissPath: {
-        type: "string",
-        default: "",
-        title: "FAISS Index Path",
-        description:
-          "The file path where the FAISS index will be saved or loaded from.",
-      },
-      metric: {
-        type: "string",
-        default: "l2",
-        title: "FAISS Distance Metric",
-        enum: ["l2", "ip"],
-        description:
-          "Select the similarity measure used in FAISS: L2 (Euclidean Distance) or IP (Inner Product).",
+        description: "Create new FAISS index or load existing one",
       },
     },
   },
@@ -844,6 +404,26 @@ export const FAISSSchema: ModelSettingsDict = {
       "ui:widget": "text",
       "ui:options": {
         placeholder: "Custom name for your retrieval method",
+      },
+    },
+    embeddingProvider: {
+      "ui:widget": "select",
+      "ui:options": {
+        enumOptions: embeddingProviders.map(p => ({
+          label: p.label,
+          value: p.value,
+        })),
+      },
+      "ui:help": "Choose the embedding provider",
+    },
+    embeddingModel: {
+      "ui:widget": "datalist",
+      "ui:help": "Select a model or enter a custom model name",
+    },
+    embeddingLocalPath: {
+      "ui:widget": "text",
+      "ui:options": {
+        placeholder: "e.g., ./my_model_directory",
       },
     },
     top_k: {
@@ -862,33 +442,79 @@ export const FAISSSchema: ModelSettingsDict = {
         step: 1,
       },
     },
-    faissMode: {
+    similarity_metric: {
       "ui:widget": "select",
       "ui:options": {
         enumOptions: [
-          { label: "Create a new FAISS index", value: "create" },
-          { label: "Load an existing FAISS index", value: "load" },
+          { label: "Cosine Similarity (standard for RAG)", value: "cosine" },
+          { label: "Euclidean Distance (L2)", value: "euclidean" },
+          { label: "Dot Product (Inner Product)", value: "dot_product" },
         ],
       },
     },
-    faissPath: {
-      "ui:widget": "text",
-      "ui:options": {
-        placeholder: "Enter the path to the FAISS index file",
-      },
-    },
-    metric: {
+    storage_backend: {
       "ui:widget": "select",
       "ui:options": {
         enumOptions: [
-          { label: "L2 (Euclidean Distance)", value: "l2" },
-          { label: "IP (Inner Product / Cosine Similarity)", value: "ip" },
+          { label: "In-Memory (simple, no persistence)", value: "memory" },
+          { label: "LanceDB (persistent, recommended)", value: "lancedb" },
+          { label: "FAISS (high-performance, requires installation)", value: "faiss" },
+        ],
+      },
+    },
+    // use_clustering: {
+    //   "ui:widget": "checkbox",
+    // },
+    // n_clusters: {
+    //   "ui:widget": "range",
+    //   "ui:options": {
+    //     min: 2,
+    //     max: 20,
+    //     step: 1,
+    //   },
+    // },
+    lancedb_path: {
+      "ui:widget": "text",
+      "ui:options": {
+        placeholder: "e.g., ./my_lancedb",
+      },
+    },
+    lancedb_table: {
+      "ui:widget": "text",
+      "ui:options": {
+        placeholder: "embeddings",
+      },
+    },
+    lancedb_search_method: {
+      "ui:widget": "select",
+      "ui:options": {
+        enumOptions: [
+          { label: "Standard Similarity", value: "similarity" },
+          { label: "Maximum Marginal Relevance (diverse results)", value: "mmr" },
+          { label: "Hybrid (vector + keyword)", value: "hybrid" },
+        ],
+      },
+    },
+    faiss_path: {
+      "ui:widget": "text",
+      "ui:options": {
+        placeholder: "e.g., ./my_index.faiss",
+      },
+    },
+    faiss_mode: {
+      "ui:widget": "select",
+      "ui:options": {
+        enumOptions: [
+          { label: "Create New Index", value: "create" },
+          { label: "Load Existing Index", value: "load" },
         ],
       },
     },
   },
   postprocessors: {},
 };
+
+
 
 // Add rank fusion methods
 export const rankFusionMethods = [
@@ -941,12 +567,11 @@ export const RetrievalMethodSchemas: {
   tfidf: TFIDFSchema,
   boolean: BooleanSearchSchema,
   overlap: KeywordOverlapSchema,
-  cosine: CosineSimilaritySchema,
-  manhattan: ManhattanDistanceSchema,
-  euclidean: EuclideanDistanceSchema,
-  clustered: ClusteredEmbeddingSchema,
-  faiss_vector_store: FAISSSchema,
-  lancedb_vector_store: LANCEDBSchema,
+  embedding: EmbeddingSimilaritySchema,
+  // Deprecated methods (kept for backwards compatibility)
+  cosine: EmbeddingSimilaritySchema,
+  euclidean: EmbeddingSimilaritySchema,
+  clustered: EmbeddingSimilaritySchema,
 };
 
 // Method groupings for the menu
@@ -1000,72 +625,25 @@ export const retrievalMethodGroups = [
     label: "Embedding-based Retrieval",
     items: [
       {
-        baseMethod: "cosine",
-        methodName: "Cosine Similarity",
-        library: "Cosine",
-        emoji: "📐",
+        baseMethod: "embedding",
+        methodName: "Embedding Similarity",
+        library: "EmbeddingSimilarity",
+        emoji: "🧠",
         group: "Embedding-based Retrieval",
         needsEmbeddingModel: true,
         description:
-          "Standard RAG-style retrieval: rank documents by cosine similarity between query and document embeddings.",
+          "Retrieve documents based on semantic similarity in embedding space. Versatile and effective for most use cases.",
       },
-      {
-        baseMethod: "manhattan",
-        methodName: "Manhattan distance",
-        library: "Manhattan",
-        emoji: "🔤",
-        group: "Embedding-based Retrieval",
-        needsEmbeddingModel: true,
-        description:
-          "Use L1 (Manhattan) distance between embeddings. Sometimes more robust to outliers than Euclidean.",
-      },
-      {
-        baseMethod: "euclidean",
-        methodName: "Euclidean distance",
-        library: "Euclidean",
-        emoji: "🎯",
-        group: "Embedding-based Retrieval",
-        needsEmbeddingModel: true,
-        description:
-          "Retrieve by L2 (Euclidean) distance in embedding space. Useful when absolute distances matter.",
-      },
-      {
-        baseMethod: "clustered",
-        methodName: "Clustered Embedding",
-        library: "Clustered",
-        emoji: "🎲",
-        group: "Embedding-based Retrieval",
-        needsEmbeddingModel: true,
-        description:
-          "Cluster documents in embedding space, then retrieve from the most relevant clusters. Good for large, heterogeneous corpora.",
-      },
-    ],
-  },
-  {
-    label: "Vector Stores",
-    items: [
-      {
-        baseMethod: "lancedb_vector_store",
-        methodName: "LanceDB Vectorstore",
-        library: "LanceDB",
-        emoji: "🗄️",
-        group: "Vector Stores",
-        needsEmbeddingModel: true,
-        description:
-          "Use LanceDB as a persistent vector store for embeddings with fast similarity search.",
-      },
-      // Requires FAISS to be installed, which is not always available by default,
-      // since it requires 'swig' to be installed which can only be done outside pip.
-      {
-        baseMethod: "faiss_vector_store",
-        methodName: "FAISS Vectorstore",
-        library: "FAISS",
-        emoji: "💾",
-        group: "Vector Stores",
-        needsEmbeddingModel: true,
-        description:
-          "Backed by FAISS, Facebook’s high-performance similarity search library, for large-scale embedding retrieval.",
-      },
+      // {
+      //   baseMethod: "clustered",
+      //   methodName: "Clustered Embedding",
+      //   library: "Clustered",
+      //   emoji: "🎲",
+      //   group: "Embedding-based Retrieval",
+      //   needsEmbeddingModel: true,
+      //   description:
+      //     "Cluster documents in embedding space, then retrieve from the most relevant clusters. Good for large, heterogeneous corpora.",
+      // },
     ],
   },
 ];
