@@ -463,10 +463,29 @@ class LancedbVectorStore(VectorStore):
         # Format results
         formatted_results = []
         for _, row in results.iterrows():
+            # Convert distance to similarity score based on the metric used
+            distance = row["_distance"]
+            
+            if distance_metric == "cosine":
+                # Cosine distance is in [0, 2], where 0 = identical, 2 = opposite
+                # Convert to similarity in [0, 1]
+                similarity = 1.0 - (distance / 2.0)
+            elif distance_metric == "l2":
+                # L2 (Euclidean) distance is in [0, ∞), convert to similarity in [0, 1]
+                # Use inverse distance: similarity = 1 / (1 + distance)
+                similarity = 1.0 / (1.0 + distance)
+            elif distance_metric == "dot":
+                # Dot product in LanceDB is negative (for minimization)
+                # Negate it to get the actual dot product similarity
+                similarity = -distance
+            else:
+                # Fallback to simple conversion
+                similarity = 1.0 / (1.0 + distance)
+            
             formatted_results.append({
                 "id": row["id"],
                 "text": row["text"],
-                "similarity": 1 - row["_distance"],  # Convert distance to similarity score
+                "similarity": float(similarity),
                 "metadata": pickle.loads(row["metadata"])  # Deserialize metadata
             })
         

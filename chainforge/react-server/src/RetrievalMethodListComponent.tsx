@@ -84,8 +84,10 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
   methodItem,
   onSettingsUpdate,
 }) => {
-  const [currentSettings, setCurrentSettings] = React.useState(methodItem.settings);
-  
+  const [currentSettings, setCurrentSettings] = React.useState(
+    methodItem.settings,
+  );
+
   // Update local state when methodItem changes
   React.useEffect(() => {
     setCurrentSettings(methodItem.settings);
@@ -110,7 +112,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
   let finalSchema = (customSchema?.schema ?? builtin?.schema) as
     | RJSFSchema
     | undefined;
-  let finalUiSchema = (customSchema?.uiSchema ?? builtin?.uiSchema) as
+  const finalUiSchema = (customSchema?.uiSchema ?? builtin?.uiSchema) as
     | UiSchema
     | undefined;
 
@@ -142,14 +144,15 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     finalSchema?.properties
   ) {
     // Get the currently selected provider from current settings
-    const selectedProvider = currentSettings?.embeddingProvider || 
-      (finalSchema.properties as any).embeddingProvider?.default || 
+    const selectedProvider =
+      currentSettings?.embeddingProvider ||
+      (finalSchema.properties as any).embeddingProvider?.default ||
       "huggingface";
-    
+
     const provider = embeddingProviders.find(
       (p) => p.value === selectedProvider,
     );
-    
+
     if (provider && provider.models && provider.models.length > 0) {
       // Update the embeddingModel enum to match the selected provider's models
       finalSchema = {
@@ -164,10 +167,10 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
       } as RJSFSchema;
     }
   }
-  
+
   const handleSettingsChange = (e: any) => {
     const newSettings = e.formData;
-    
+
     // Check if embeddingProvider changed
     if (
       methodItem.needsEmbeddingModel &&
@@ -182,7 +185,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         newSettings.embeddingModel = newProvider.models[0];
       }
     }
-    
+
     setCurrentSettings(newSettings);
     onSettingsUpdate(newSettings);
   };
@@ -811,34 +814,13 @@ export const RetrievalMethodListContainer = forwardRef<
       (group) => ({
         key: `group-${group.label}`,
         title: group.label,
-        items: group.items.flatMap((m) => {
-          // If a method needs an embedding provider, make it a nested submenu
-          if (m.needsEmbeddingModel) {
-            return [
-              {
-                key: `method-${m.baseMethod}`,
-                title: m.methodName,
-                icon: m.emoji ? <Text>{m.emoji}</Text> : undefined,
-                items: embeddingProviders.map((prov) => ({
-                  key: `method-${m.baseMethod}-${prov.value}`,
-                  title: prov.label,
-                  tooltip: m.description,
-                  onClick: () => addMethod(m, prov.value),
-                })),
-              },
-            ] as NestedMenuItemProps[];
-          }
-          // Otherwise, a simple leaf item
-          return [
-            {
-              key: `method-${m.baseMethod}`,
-              title: m.methodName,
-              tooltip: m.description,
-              icon: m.emoji ? <Text>{m.emoji}</Text> : undefined,
-              onClick: () => addMethod(m),
-            },
-          ] as NestedMenuItemProps[];
-        }),
+        items: group.items.map((m) => ({
+          key: `method-${m.baseMethod}-${m.embeddingProvider || "default"}`,
+          title: m.methodName,
+          tooltip: m.description,
+          icon: m.emoji ? <Text>{m.emoji}</Text> : undefined,
+          onClick: () => addMethod(m, m.embeddingProvider),
+        })),
       }),
     );
 

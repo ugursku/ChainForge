@@ -289,10 +289,16 @@ export const KeywordOverlapSchema: ModelSettingsDict = {
  */
 export const EmbeddingSimilaritySchema: ModelSettingsDict = {
   fullName: "Embedding-based Similarity",
-  description: "Retrieves documents using semantic similarity between embeddings",
+  description:
+    "Retrieves documents using semantic similarity between embeddings",
   schema: {
     type: "object",
-    required: ["top_k", "similarity_threshold", "similarity_metric", "storage_backend"],
+    required: [
+      "top_k",
+      "similarity_threshold",
+      "similarity_metric",
+      "storage_backend",
+    ],
     properties: {
       shortName: {
         type: "string",
@@ -304,7 +310,7 @@ export const EmbeddingSimilaritySchema: ModelSettingsDict = {
       embeddingProvider: {
         type: "string",
         title: "Embedding Provider",
-        enum: embeddingProviders.map(p => p.value),
+        enum: embeddingProviders.map((p) => p.value),
         default: "huggingface",
         description: "Select the embedding provider to use",
       },
@@ -318,7 +324,8 @@ export const EmbeddingSimilaritySchema: ModelSettingsDict = {
         type: "string",
         title: "Local Model Path (optional)",
         default: "",
-        description: "Only needed if you prefer local files instead of downloading the model automatically.",
+        description:
+          "Only needed if you prefer local files instead of downloading the model automatically.",
       },
       top_k: {
         type: "number",
@@ -348,7 +355,8 @@ export const EmbeddingSimilaritySchema: ModelSettingsDict = {
         default: "lancedb",
         title: "Storage Backend",
         enum: ["lancedb", "faiss"],
-        description: "Where to store and search embeddings. LanceDB is simplest for persistence; FAISS for large-scale (requires separate installation) and possibly connecting to a pre-computed FAISS vector store on your local disk.",
+        description:
+          "Where to store and search embeddings. LanceDB is simplest for persistence; FAISS for large-scale (requires separate installation) and possibly connecting to a pre-computed FAISS vector store on your local disk.",
       },
       // Disable clustering method for now, too complex
       // use_clustering: {
@@ -368,7 +376,8 @@ export const EmbeddingSimilaritySchema: ModelSettingsDict = {
         type: "string",
         default: "",
         title: "LanceDB Path",
-        description: "File path for LanceDB database (required if using LanceDB backend)",
+        description:
+          "File path for LanceDB database (required if using LanceDB backend)",
       },
       lancedb_table: {
         type: "string",
@@ -381,14 +390,16 @@ export const EmbeddingSimilaritySchema: ModelSettingsDict = {
         default: "similarity",
         title: "LanceDB Search Method",
         enum: ["similarity", "mmr", "hybrid"],
-        description: "Search strategy: standard similarity, MMR (diverse results), or hybrid (vector + keyword)",
+        description:
+          "Search strategy: standard similarity, MMR (diverse results), or hybrid (vector + keyword)",
       },
       // FAISS-specific settings
       faiss_path: {
         type: "string",
         default: "",
         title: "FAISS Index Path",
-        description: "File path to save/load FAISS index (required if using FAISS backend)",
+        description:
+          "File path to save/load FAISS index (required if using FAISS backend)",
       },
       faiss_mode: {
         type: "string",
@@ -409,7 +420,7 @@ export const EmbeddingSimilaritySchema: ModelSettingsDict = {
     embeddingProvider: {
       "ui:widget": "select",
       "ui:options": {
-        enumOptions: embeddingProviders.map(p => ({
+        enumOptions: embeddingProviders.map((p) => ({
           label: p.label,
           value: p.value,
         })),
@@ -458,7 +469,10 @@ export const EmbeddingSimilaritySchema: ModelSettingsDict = {
         enumOptions: [
           { label: "In-Memory (simple, no persistence)", value: "memory" },
           { label: "LanceDB (persistent, recommended)", value: "lancedb" },
-          { label: "FAISS (high-performance, requires installation)", value: "faiss" },
+          {
+            label: "FAISS (high-performance, requires installation)",
+            value: "faiss",
+          },
         ],
       },
     },
@@ -490,7 +504,10 @@ export const EmbeddingSimilaritySchema: ModelSettingsDict = {
       "ui:options": {
         enumOptions: [
           { label: "Standard Similarity", value: "similarity" },
-          { label: "Maximum Marginal Relevance (diverse results)", value: "mmr" },
+          {
+            label: "Maximum Marginal Relevance (diverse results)",
+            value: "mmr",
+          },
           { label: "Hybrid (vector + keyword)", value: "hybrid" },
         ],
       },
@@ -513,8 +530,6 @@ export const EmbeddingSimilaritySchema: ModelSettingsDict = {
   },
   postprocessors: {},
 };
-
-
 
 // Add rank fusion methods
 export const rankFusionMethods = [
@@ -586,6 +601,7 @@ export const retrievalMethodGroups = [
         emoji: "📊",
         group: "Keyword-based Retrieval",
         needsEmbeddingModel: false,
+        embeddingProvider: undefined,
         description:
           "Classic keyword ranking using term frequency and document length normalization. Great default for keyword-heavy queries.",
       },
@@ -596,6 +612,7 @@ export const retrievalMethodGroups = [
         emoji: "📈",
         group: "Keyword-based Retrieval",
         needsEmbeddingModel: false,
+        embeddingProvider: undefined,
         description:
           "Vector-space retrieval based on term frequency–inverse document frequency. Good for exact words and rare terms.",
       },
@@ -606,6 +623,7 @@ export const retrievalMethodGroups = [
         emoji: "🔍",
         group: "Keyword-based Retrieval",
         needsEmbeddingModel: false,
+        embeddingProvider: undefined,
         description:
           "Keyword retrieval based on minimum token overlap with the query, ranked by how many words they share.",
       },
@@ -616,6 +634,7 @@ export const retrievalMethodGroups = [
         emoji: "🎯",
         group: "Keyword-based Retrieval",
         needsEmbeddingModel: false,
+        embeddingProvider: undefined,
         description:
           "Score documents by how many query keywords they share. Simple and fast when term overlap is what matters.",
       },
@@ -626,13 +645,58 @@ export const retrievalMethodGroups = [
     items: [
       {
         baseMethod: "embedding",
-        methodName: "Embedding Similarity",
+        methodName: "HuggingFace Embedding",
+        library: "EmbeddingSimilarity",
+        emoji: "🤗",
+        group: "Embedding-based Retrieval",
+        needsEmbeddingModel: true,
+        embeddingProvider: "huggingface",
+        description:
+          "Retrieve documents using HuggingFace transformer embeddings. Fast, open-source, and runs locally.",
+      },
+      {
+        baseMethod: "embedding",
+        methodName: "OpenAI Embedding",
+        library: "EmbeddingSimilarity",
+        emoji: "🤖",
+        group: "Embedding-based Retrieval",
+        needsEmbeddingModel: true,
+        embeddingProvider: "openai",
+        description:
+          "Retrieve documents using OpenAI embeddings (ada-002, text-embedding-3). High quality, requires API key.",
+      },
+      {
+        baseMethod: "embedding",
+        methodName: "Azure OpenAI Embedding",
+        library: "EmbeddingSimilarity",
+        emoji: "🔷",
+        group: "Embedding-based Retrieval",
+        needsEmbeddingModel: true,
+        embeddingProvider: "azure-openai",
+        description:
+          "Retrieve documents using Azure OpenAI embeddings. Enterprise-ready with Azure compliance.",
+      },
+      {
+        baseMethod: "embedding",
+        methodName: "Cohere Embedding",
+        library: "EmbeddingSimilarity",
+        emoji: "💬",
+        group: "Embedding-based Retrieval",
+        needsEmbeddingModel: true,
+        embeddingProvider: "cohere",
+        description:
+          "Retrieve documents using Cohere embeddings. Multilingual support and optimized for search.",
+      },
+      {
+        baseMethod: "embedding",
+        methodName: "Sentence Transformers Embedding",
         library: "EmbeddingSimilarity",
         emoji: "🧠",
         group: "Embedding-based Retrieval",
         needsEmbeddingModel: true,
+        embeddingProvider: "sentence-transformers",
         description:
-          "Retrieve documents based on semantic similarity in embedding space. Versatile and effective for most use cases.",
+          "Retrieve documents using Sentence Transformers. Optimized for semantic similarity tasks.",
       },
       // {
       //   baseMethod: "clustered",
